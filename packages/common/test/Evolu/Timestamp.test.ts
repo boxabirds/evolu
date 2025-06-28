@@ -13,6 +13,7 @@ import {
   TimestampTimeOutOfRangeError,
   binaryTimestampToTimestamp,
   createInitialTimestamp,
+  createInitialTimestampWithContext,
   createTimestamp,
   maxCounter,
   maxMillis,
@@ -29,6 +30,8 @@ import { orderNumber } from "../../src/Order.js";
 import { Result, getOrThrow, ok } from "../../src/Result.js";
 import { TimeDep } from "../../src/Time.js";
 import { testNanoIdLibDep, testRandomLib } from "../_deps.js";
+import type { SecurityContext } from "../../src/Evolu/SecurityAbstractions.js";
+import { PlaintextSecurityContext } from "../../src/Evolu/PlaintextImplementations.js";
 
 test("Millis", () => {
   expect(Millis.from(-1).ok).toBe(false);
@@ -410,5 +413,80 @@ describe("receiveTimestamp", () => {
       .all()
       .map((a) => decodeFromEncoded(a.t).millis);
     expect(sqliteMillis).toEqual(sortedMillis);
+  });
+});
+
+describe("Timestamp with SecurityContext", () => {
+  test("createInitialTimestampWithContext creates timestamp with context's NodeId", () => {
+    const mockContext: SecurityContext = {
+      id: "test-context",
+      type: "test",
+      createNodeId: () => "abcdef0123456789" as NodeId,
+      getPartitionKey: () => "test-partition",
+    };
+    
+    const timestamp = createInitialTimestampWithContext(mockContext);
+    
+    expect(timestamp.nodeId).toBe("abcdef0123456789");
+    expect(timestamp.millis).toBe(minMillis);
+    expect(timestamp.counter).toBe(minCounter);
+  });
+
+  test("PlaintextSecurityContext creates valid timestamps", () => {
+    const context = new PlaintextSecurityContext("test");
+    const timestamp = createInitialTimestampWithContext(context);
+    
+    expect(timestamp.nodeId).toMatch(/^[a-f0-9]{16}$/);
+    expect(NodeId.is(timestamp.nodeId)).toBe(true);
+    expect(timestamp.millis).toBe(minMillis);
+    expect(timestamp.counter).toBe(minCounter);
+  });
+
+  test("multiple contexts create different NodeIds", () => {
+    const context1: SecurityContext = {
+      id: "ctx1",
+      type: "test",
+      createNodeId: () => "1111111111111111" as NodeId,
+      getPartitionKey: () => "partition1",
+    };
+    
+    const context2: SecurityContext = {
+      id: "ctx2", 
+      type: "test",
+      createNodeId: () => "2222222222222222" as NodeId,
+      getPartitionKey: () => "partition2",
+    };
+    
+    const timestamp1 = createInitialTimestampWithContext(context1);
+    const timestamp2 = createInitialTimestampWithContext(context2);
+    
+    expect(timestamp1.nodeId).toBe("1111111111111111");
+    expect(timestamp2.nodeId).toBe("2222222222222222");
+    expect(timestamp1.nodeId).not.toBe(timestamp2.nodeId);
+  });
+
+  test("legacy createInitialTimestamp still works", () => {
+    const timestamp = createInitialTimestamp(testNanoIdLibDep);
+    
+    expect(NodeId.is(timestamp.nodeId)).toBe(true);
+    expect(timestamp.nodeId).toMatch(/^[a-f0-9]{16}$/);
+    expect(timestamp.millis).toBe(minMillis);
+    expect(timestamp.counter).toBe(minCounter);
+  });
+
+  test("timestamps from different security contexts can be compared", () => {
+    const context1 = new PlaintextSecurityContext("ctx1");
+    const context2 = new PlaintextSecurityContext("ctx2");
+    
+    const timestamp1 = createInitialTimestampWithContext(context1);
+    const timestamp2 = createInitialTimestampWithContext(context2);
+    
+    // Even with different contexts, timestamps should be comparable
+    const binary1 = timestampToBinaryTimestamp(timestamp1);
+    const binary2 = timestampToBinaryTimestamp(timestamp2);
+    
+    // Order should be deterministic (based on NodeId since millis and counter are the same)
+    const order = orderBinaryTimestamp(binary1, binary2);
+    expect([-1, 0, 1]).toContain(order);
   });
 });

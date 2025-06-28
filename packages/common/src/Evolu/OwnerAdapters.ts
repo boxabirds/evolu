@@ -23,17 +23,20 @@ import type {
 } from "./Owner.js";
 import type { NodeId } from "./Timestamp.js";
 import type { SymmetricCrypto } from "../Crypto.js";
-import { createSlip21NodeId } from "./Timestamp.js";
+import { createSlip21, mnemonicToMnemonicSeed, createSlip21Id } from "../Crypto.js";
+import { NanoIdLibDep } from "../NanoId.js";
 
 /**
  * Adapts an Owner to work as a SecurityContext
  */
 export class OwnerSecurityContext implements SecurityContext {
   readonly type = "owner" as const;
+  private nodeId: NodeId | undefined;
   
   constructor(
     private readonly owner: Owner | OwnerWithWriteAccess,
-    private readonly sharedOwners: ReadonlyArray<SharedOwner> = []
+    private readonly sharedOwners: ReadonlyArray<SharedOwner> = [],
+    private readonly nanoIdDep?: NanoIdLibDep
   ) {}
   
   get id(): string {
@@ -41,8 +44,37 @@ export class OwnerSecurityContext implements SecurityContext {
   }
   
   createNodeId(): NodeId {
-    // Use the existing SLIP-21 based node ID generation
-    return createSlip21NodeId(this.owner.encryptionKey);
+    // Cache the nodeId to ensure consistency
+    if (this.nodeId) {
+      return this.nodeId;
+    }
+    
+    // For OwnerWithWriteAccess (no mnemonic), generate random NodeId
+    if (!('mnemonic' in this.owner)) {
+      if (!this.nanoIdDep) {
+        throw new Error("NanoIdLibDep required for OwnerWithWriteAccess");
+      }
+      const hexAlphabet = "0123456789abcdef";
+      this.nodeId = this.nanoIdDep.nanoIdLib.customAlphabet(hexAlphabet, 16)() as NodeId;
+      return this.nodeId;
+    }
+    
+    // For full Owner, generate deterministic NodeId from mnemonic
+    const owner = this.owner as Owner;
+    const seed = mnemonicToMnemonicSeed(owner.mnemonic);
+    const nodeIdBytes = createSlip21(
+      seed,
+      ["Evolu", "NodeId", this.owner.id]
+    );
+    
+    // Convert first 8 bytes to hex string (16 characters)
+    let nodeId = "";
+    for (let i = 0; i < 8; i++) {
+      nodeId += nodeIdBytes[i].toString(16).padStart(2, "0");
+    }
+    
+    this.nodeId = nodeId as NodeId;
+    return this.nodeId;
   }
   
   getPartitionKey(): string {
@@ -136,7 +168,7 @@ export class OwnerEncryptionProvider implements EncryptionProvider {
       nonce
     );
     
-    if (!result.success) {
+    if (!result.ok) {
       throw new Error(`Decryption failed: ${result.error.type}`);
     }
     
@@ -172,13 +204,24 @@ export class OwnerPartitionStrategy implements PartitionStrategy {
     }
     
     // Check if remote is a shared owner
-    return this.sharedOwners.some(shared => shared.id === remoteContext.id);
+    return this.sharedOwners.some(shared => {
+      const sharedId = this.getSharedOwnerId(shared);
+      return sharedId === remoteContext.id;
+    });
   }
   
   canAccess(context: SecurityContext, data: EncryptedData): boolean {
     // Can access own data or shared owner data
     return data.contextId === context.id ||
-           this.sharedOwners.some(shared => shared.id === data.contextId);
+           this.sharedOwners.some(shared => {
+             const sharedId = this.getSharedOwnerId(shared);
+             return sharedId === data.contextId;
+           });
+  }
+  
+  private getSharedOwnerId(shared: SharedOwner): string {
+    const seed = mnemonicToMnemonicSeed(shared.mnemonic);
+    return createSlip21Id(seed, ["Evolu", "Owner"]);
   }
   
   filterSyncTargets(
@@ -195,7 +238,8 @@ export class OwnerPartitionStrategy implements PartitionStrategy {
 export class OwnerSecurityFactory implements SecurityFactory {
   constructor(
     private readonly symmetricCrypto: SymmetricCrypto,
-    private readonly sharedOwners: ReadonlyArray<SharedOwner> = []
+    private readonly sharedOwners: ReadonlyArray<SharedOwner> = [],
+    private readonly nanoIdDep?: NanoIdLibDep
   ) {}
   
   createAuthProvider(context: SecurityContext): AuthProvider {
@@ -229,10 +273,11 @@ export class OwnerSecurityFactory implements SecurityFactory {
 export const createOwnerSecurity = (
   owner: Owner | OwnerWithWriteAccess,
   symmetricCrypto: SymmetricCrypto,
-  sharedOwners: ReadonlyArray<SharedOwner> = []
+  sharedOwners: ReadonlyArray<SharedOwner> = [],
+  nanoIdDep?: NanoIdLibDep
 ) => {
-  const context = new OwnerSecurityContext(owner, sharedOwners);
-  const factory = new OwnerSecurityFactory(symmetricCrypto, sharedOwners);
+  const context = new OwnerSecurityContext(owner, sharedOwners, nanoIdDep);
+  const factory = new OwnerSecurityFactory(symmetricCrypto, sharedOwners, nanoIdDep);
   
   return {
     context,

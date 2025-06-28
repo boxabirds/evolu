@@ -13,6 +13,7 @@ import {
   String,
 } from "../Type.js";
 import { Brand } from "../Types.js";
+import type { SecurityContext } from "./SecurityAbstractions.js";
 
 export interface TimestampConfig {
   /**
@@ -83,8 +84,8 @@ export const minCounter = 0 as Counter;
 export const maxCounter = 65535 as Counter;
 
 /**
- * A NodeId uniquely identifies an owner's device. Generated once per device
- * using cryptographic randomness.
+ * A NodeId uniquely identifies a device within a security context. 
+ * Generated using the SecurityContext's createNodeId() method.
  *
  * Collision probability (birthday paradox):
  *
@@ -97,12 +98,12 @@ export const maxCounter = 65535 as Counter;
  *
  * What will happen if a different device generates the same NodeId?
  *
- * If the device belongs to a different owner, nothing will happen because
- * different owner have different owner IDs. Timestamps are partitioned by
- * OwnerId.
+ * If the device belongs to a different security context, nothing will happen 
+ * because different contexts have different partitions. Timestamps are 
+ * partitioned by the SecurityContext's partition key.
  *
- * If the device belongs to the same owner, the other device will return
- * {@link TimestampDuplicateNodeError}.
+ * If the device belongs to the same security context, the other device will 
+ * return {@link TimestampDuplicateNodeError}.
  */
 export const NodeId = regex("NodeId", /^[a-f0-9]{16}$/)(String);
 export type NodeId = typeof NodeId.Type;
@@ -132,8 +133,24 @@ export const createTimestamp = ({
 
 const hexAlphabet = "0123456789abcdef";
 
+/**
+ * Creates an initial timestamp using a random NodeId.
+ * @deprecated Use createInitialTimestampWithContext instead
+ */
 export const createInitialTimestamp = (deps: NanoIdLibDep): Timestamp => {
   const nodeId = deps.nanoIdLib.customAlphabet(hexAlphabet, 16)() as NodeId;
+  return createTimestamp({ nodeId });
+};
+
+/**
+ * Creates an initial timestamp using the SecurityContext to generate the NodeId.
+ * This is the preferred method as it ensures NodeIds are properly scoped to
+ * their security context.
+ */
+export const createInitialTimestampWithContext = (
+  context: SecurityContext
+): Timestamp => {
+  const nodeId = context.createNodeId();
   return createTimestamp({ nodeId });
 };
 

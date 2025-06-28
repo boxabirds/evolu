@@ -29,9 +29,19 @@ export class PlaintextSecurityContext implements SecurityContext {
   ) {}
   
   createNodeId(): NodeId {
-    // Simple deterministic node ID for plaintext mode
-    // In production, this would use cryptographic randomness
-    return `plaintext-${this.id}-${Date.now()}` as NodeId;
+    // Generate a valid 16-character hex NodeId for plaintext mode
+    // Uses a simple hash of the context id and current time
+    const source = `${this.id}-${Date.now()}`;
+    let hash = 0;
+    for (let i = 0; i < source.length; i++) {
+      const char = source.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    // Convert to hex and pad/truncate to 16 characters
+    const hex = Math.abs(hash).toString(16).padStart(16, '0').slice(0, 16);
+    return hex as NodeId;
   }
   
   getPartitionKey(): string {
