@@ -30,9 +30,16 @@ import {
 } from "../Type.js";
 import {
   createInitialTimestamp,
+  createInitialTimestampWithContext,
   TimestampString,
   timestampToTimestampString,
 } from "./Timestamp.js";
+import { 
+  SecurityContext,
+} from "./SecurityAbstractions.js";
+import {
+  OwnerSecurityContext,
+} from "./OwnerAdapters.js";
 
 // TODO: Clean API
 // - createOwner should be createAppOwner
@@ -266,7 +273,14 @@ export const createOwnerRow =
   (
     owner: AppOwner | ShardOwner | SharedOwner | SharedReadonlyOwner,
   ): OwnerRow => {
-    const timestamp = timestampToTimestampString(createInitialTimestamp(deps));
+    // Create a security context for the owner to generate proper NodeId
+    const fullOwner = owner.type === "AppOwner" 
+      ? owner 
+      : owner.type === "SharedReadonlyOwner" 
+        ? createOwner(deps)(owner.mnemonic) 
+        : createOwner(deps)(owner.mnemonic, owner.writeKey);
+    const context = new OwnerSecurityContext(fullOwner, [], deps);
+    const timestamp = timestampToTimestampString(createInitialTimestampWithContext(context));
     switch (owner.type) {
       case "AppOwner": {
         const { type, ...rest } = owner;

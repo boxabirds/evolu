@@ -128,7 +128,7 @@ test("insert should validate input and call postMessage", async () => {
 
   expect(result.ok).toBe(true);
   expect(result.ok && result.value.id).toMatchInlineSnapshot(
-    `"esTwHwplqLBSE8Ou8ffX4"`,
+    `"3C22DRVU0AHGjXpOEP-WJ"`,
   );
 
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -138,7 +138,7 @@ test("insert should validate input and call postMessage", async () => {
       {
         "changes": [
           {
-            "id": "esTwHwplqLBSE8Ou8ffX4",
+            "id": "3C22DRVU0AHGjXpOEP-WJ",
             "table": "todo",
             "values": {
               "title": "Test Todo",
@@ -147,7 +147,7 @@ test("insert should validate input and call postMessage", async () => {
         ],
         "onCompleteIds": [],
         "subscribedQueries": [],
-        "tabId": "s9rNnUeri8bzhS5AX_mRy",
+        "tabId": "kYF3FmbitSesTwHwplqLB",
         "type": "mutate",
       },
     ]
@@ -210,7 +210,7 @@ test("update should validate input and call postMessage", async () => {
       {
         "changes": [
           {
-            "id": "e37rn9q4lwirRDIx1Y9e4",
+            "id": "D2PtSrFu-SJV0Ui1_SJB3",
             "table": "todo",
             "values": {
               "title": "Updated Todo",
@@ -219,7 +219,7 @@ test("update should validate input and call postMessage", async () => {
         ],
         "onCompleteIds": [],
         "subscribedQueries": [],
-        "tabId": "s9rNnUeri8bzhS5AX_mRy",
+        "tabId": "kYF3FmbitSesTwHwplqLB",
         "type": "mutate",
       },
     ]
@@ -283,7 +283,7 @@ test("upsert should validate input and call postMessage", async () => {
       {
         "changes": [
           {
-            "id": "ZUN-T4MZhx0p9fO9i2LT9",
+            "id": "v5rPltodHge37rn9q4lwi",
             "table": "todo",
             "values": {
               "title": "Upserted Todo",
@@ -292,7 +292,7 @@ test("upsert should validate input and call postMessage", async () => {
         ],
         "onCompleteIds": [],
         "subscribedQueries": [],
-        "tabId": "s9rNnUeri8bzhS5AX_mRy",
+        "tabId": "kYF3FmbitSesTwHwplqLB",
         "type": "mutate",
       },
     ]
@@ -326,7 +326,7 @@ test("upsert should reject invalid input", () => {
         },
         "type": "Object",
         "value": {
-          "id": "yKrUtl5RZ4mz12WZ_SQtm",
+          "id": "6xwHpK2ZkuZUN-T4MZhx0",
           "title": "",
         },
       },
@@ -352,21 +352,21 @@ test("mutations should be processed in microtask queue", async () => {
       {
         "changes": [
           {
-            "id": "fIT5Ci6Vt_fajhVHzg5iu",
+            "id": "yVRcpEppKHyKrUtl5RZ4m",
             "table": "todo",
             "values": {
               "title": "Todo 1",
             },
           },
           {
-            "id": "oSfTGGJoCBJ9xgjl8Ky6B",
+            "id": "CTxiAw0gY_fIT5Ci6Vt_f",
             "table": "todo",
             "values": {
               "title": "Todo 2",
             },
           },
           {
-            "id": "pXftCAjUskTmno2dqqyjQ",
+            "id": "kbP-KUG7NKoSfTGGJoCBJ",
             "table": "todo",
             "values": {
               "title": "Todo 3",
@@ -375,7 +375,7 @@ test("mutations should be processed in microtask queue", async () => {
         ],
         "onCompleteIds": [],
         "subscribedQueries": [],
-        "tabId": "s9rNnUeri8bzhS5AX_mRy",
+        "tabId": "kYF3FmbitSesTwHwplqLB",
         "type": "mutate",
       },
     ]
