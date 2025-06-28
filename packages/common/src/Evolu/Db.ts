@@ -34,7 +34,8 @@ import {
   SqliteValue,
 } from "../Sqlite.js";
 import { TimeDep } from "../Time.js";
-import { array, Id, Mnemonic, object, SimpleName, String } from "../Type.js";
+import { array, Id, Mnemonic, object, SimpleName, String, NonNegativeInt } from "../Type.js";
+import { Buffer, createBuffer, bytesToHex } from "../Buffer.js";
 import {
   createInitializedWorker,
   Worker,
@@ -48,6 +49,7 @@ import {
   createOwnerRow,
   OwnerRow,
   OwnerWithWriteAccess,
+  OwnerId,
 } from "./Owner.js";
 import {
   applyProtocolMessageAsClient,
@@ -75,6 +77,7 @@ import {
   Query,
   QueryRowsCache,
 } from "./Query.js";
+import { NodeId } from "./Timestamp.js";
 import {
   createSqliteStorageBase,
   CreateSqliteStorageBaseOptions,
@@ -1289,3 +1292,210 @@ const createClientStorage =
 
     return ok(storage);
   };
+
+// ============================================
+// Partition Strategy-based Sync Functions
+// ============================================
+// These functions support the new PartitionStrategy abstraction while maintaining
+// backward compatibility with the owner-based sync system.
+
+import type {
+  SecurityContext,
+  PartitionStrategy,
+  AuthProvider,
+  EncryptionProvider,
+} from "./SecurityAbstractions.js";
+import {
+  type SyncManager,
+  createSyncManager,
+  createAuthProviderGetter,
+} from "./SyncAbstractions.js";
+import type {
+  ProtocolAuthAdapter,
+} from "./ProtocolAbstractions.js";
+import {
+  createProtocolMessageFromCrdtMessagesWithAuth,
+  parseProtocolMessageWithAuth,
+} from "./Protocol.js";
+
+/**
+ * Extended sync configuration that uses PartitionStrategy
+ */
+export interface PartitionBasedSyncConfig extends Omit<SyncConfig, 'onOpen' | 'onMessage'> {
+  /** Security contexts this client manages */
+  readonly contexts: ReadonlyArray<SecurityContext>;
+  
+  /** Partition strategy for sync decisions */
+  readonly partitionStrategy: PartitionStrategy;
+  
+  /** Get auth provider for a context */
+  readonly getAuthProvider: (context: SecurityContext) => AuthProvider | null;
+  
+  /** Get encryption provider for a context */
+  readonly getEncryptionProvider: (context: SecurityContext) => EncryptionProvider | null;
+}
+
+/**
+ * Creates sync open handler that uses PartitionStrategy
+ */
+const createPartitionBasedSyncOpen =
+  (
+    deps: StorageDep & ConsoleDep,
+    config: PartitionBasedSyncConfig,
+  ): ((syncManager: SyncManager) => void) =>
+  (syncManager) => {
+    // Send initial sync message for each context
+    syncManager.sendForAllContexts((context) => {
+      const ownerId = context.id as OwnerId;
+      const message = createProtocolMessageForSync(deps)(ownerId);
+      if (message) {
+        deps.console.log("[db]", "send initial sync message for", ownerId, message);
+      }
+      return message;
+    });
+  };
+
+/**
+ * Creates sync message handler that uses PartitionStrategy
+ */
+const createPartitionBasedSyncMessage =
+  (
+    deps: PostMessageDep & StorageDep & SqliteDep & ConsoleDep,
+    config: PartitionBasedSyncConfig,
+  ): ((input: Uint8Array, syncManager: SyncManager) => void) =>
+  (input, syncManager) => {
+    deps.console.log("[db]", "receive sync message", input);
+    
+    // Parse the message to get the ownerId
+    const parseResult = tryDecodeProtocolData<[NonNegativeInt, OwnerId], never>(
+      input,
+      (buffer) => {
+        const [version, ownerId] = decodeVersionAndOwner(buffer);
+        return ok([version, ownerId]);
+      },
+    );
+    
+    if (!parseResult.ok) {
+      deps.postMessage({ 
+        type: "onError", 
+        error: { type: "ProtocolInvalidDataError", data: input, error: parseResult.error } 
+      });
+      return;
+    }
+    
+    const [version, remoteOwnerId] = parseResult.value;
+    
+    // Find contexts that should sync with this remote owner
+    const remoteContext: SecurityContext = {
+      id: remoteOwnerId,
+      type: "owner",
+      createNodeId: () => "0000000000000000" as NodeId, // Placeholder
+      getPartitionKey: () => remoteOwnerId,
+    };
+    
+    const syncableContexts = syncManager.getSyncableContexts(remoteContext);
+    
+    if (syncableContexts.length === 0) {
+      deps.console.log("[db]", "no contexts can sync with", remoteOwnerId);
+      return;
+    }
+    
+    // For now, process with the first syncable context
+    // TODO: Support multiple contexts syncing with the same remote
+    const localContext = syncableContexts[0];
+    const authProvider = config.getAuthProvider(localContext);
+    const encryptionProvider = config.getEncryptionProvider(localContext);
+    
+    if (!authProvider || !encryptionProvider) {
+      deps.console.log("[db]", "missing auth or encryption provider for", localContext.id);
+      return;
+    }
+    
+    // Process the message using the auth-based protocol
+    const output = deps.sqlite.transaction(() => {
+      // For backward compatibility, we still use the existing function
+      // This will be updated when we fully implement auth-based protocol
+      const owner = (deps as any).ownerRowRef?.get();
+      if (owner && localContext.id === owner.id) {
+        return applyProtocolMessageAsClient(deps)(input, {
+          getWriteKey: (_ownerId) => owner.writeKey,
+        });
+      }
+      
+      // For other contexts, we need auth-based processing
+      // For now, return null as auth-based processing is not yet implemented
+      // TODO: Implement auth-based protocol message processing
+      return ok(null);
+    });
+    
+    if (!output.ok) {
+      deps.postMessage({ type: "onError", error: output.error });
+      return;
+    }
+    
+    if (output.value) {
+      deps.console.log("[db]", "respond sync message from", localContext.id, output.value);
+      syncManager.sendForContext(localContext, output.value);
+    }
+  };
+
+/**
+ * Helper to migrate from owner-based to partition-based sync
+ */
+export const createPartitionBasedSync = (
+  deps: CreateSyncDep & StorageDep & SqliteDep & ConsoleDep & PostMessageDep,
+  baseConfig: SyncConfig,
+  partitionConfig: {
+    contexts: ReadonlyArray<SecurityContext>;
+    partitionStrategy: PartitionStrategy;
+    getAuthProvider: (context: SecurityContext) => AuthProvider | null;
+    getEncryptionProvider: (context: SecurityContext) => EncryptionProvider | null;
+  },
+) => {
+  const syncConfig: PartitionBasedSyncConfig = {
+    ...baseConfig,
+    ...partitionConfig,
+  };
+  
+  return deps.createSync(deps)({
+    ...baseConfig,
+    onOpen: (send) => {
+      const sync = { send };
+      const syncManager = createSyncManager({
+        contexts: partitionConfig.contexts,
+        partitionStrategy: partitionConfig.partitionStrategy,
+        sync,
+      });
+      createPartitionBasedSyncOpen(deps, syncConfig)(syncManager);
+    },
+    onMessage: (input, send) => {
+      const sync = { send };
+      const syncManager = createSyncManager({
+        contexts: partitionConfig.contexts,
+        partitionStrategy: partitionConfig.partitionStrategy,
+        sync,
+      });
+      createPartitionBasedSyncMessage(deps, syncConfig)(input, syncManager);
+    },
+  });
+};
+
+// Add missing imports for the new functions
+const tryDecodeProtocolData = <T, E>(
+  data: Uint8Array,
+  callback: (buffer: Buffer) => Result<T, E>,
+): Result<T, E | { type: "DecodeError"; error: unknown }> => {
+  try {
+    return callback(createBuffer(data));
+  } catch (error) {
+    return err({ type: "DecodeError" as any, error });
+  }
+};
+
+const decodeVersionAndOwner = (buffer: Buffer): [NonNegativeInt, OwnerId] => {
+  // This is a simplified version - the actual implementation is in Protocol.ts
+  const version = buffer.shift() as NonNegativeInt;
+  const ownerIdBytes = buffer.shiftN(16 as NonNegativeInt);
+  const ownerId = bytesToHex(ownerIdBytes) as OwnerId;
+  return [version, ownerId];
+};
