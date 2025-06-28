@@ -294,28 +294,6 @@ import { CRDTEngine } from "./CRDT";
 import type { SecurityContext } from "./SecurityAbstractions";
 ```
 
-## Migration Path
-
-### Phase 0.1: Add Abstractions (No Breaking Changes)
-1. Create abstraction interfaces
-2. Create adapter implementations
-3. Add abstraction-based constructors alongside existing ones
-
-### Phase 0.2: Internal Migration
-1. Update internal code to use abstractions
-2. Deprecate direct owner usage in CRDT
-3. Maintain public API compatibility
-
-### Phase 0.3: API Migration
-1. Deprecate owner-based APIs
-2. Provide migration guide
-3. Support both APIs temporarily
-
-### Phase 0.4: Cleanup
-1. Remove deprecated APIs
-2. Move owner adapters to separate module
-3. CRDT is now fully decoupled
-
 ## Success Criteria
 
 1. **No Direct Dependencies**: CRDT modules don't import Owner types
