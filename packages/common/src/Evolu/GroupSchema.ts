@@ -25,6 +25,16 @@ import type {
   GroupRole,
 } from "./GroupTypes.js";
 
+// Re-export group types
+export type { 
+  GroupId,
+  MemberId,
+  EpochId,
+  EpochKeyId,
+  GroupRole,
+  Group,
+} from "./GroupTypes.js";
+
 /**
  * Group table schema.
  * Stores group metadata and current epoch information.

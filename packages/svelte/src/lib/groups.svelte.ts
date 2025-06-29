@@ -11,8 +11,8 @@ import type {
   GroupContext,
   GroupId,
   GroupWithMembers,
-  hasGroupSupport,
-} from "@evolu/common/evolu";
+} from "@evolu/common";
+import { hasGroupSupport } from "@evolu/common";
 
 /**
  * Creates a reactive state for the current group context.

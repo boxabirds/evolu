@@ -197,8 +197,8 @@ export const createGroupAwareEvolu = <S extends EvoluSchema>(
     },
 
     supportsGroups: true,
-    groupManager,
-    groupInviteManager,
+    ...(groupManager ? { groupManager } : {}),
+    ...(groupInviteManager ? { groupInviteManager } : {}),
   };
 
   return evoluWithGroups;

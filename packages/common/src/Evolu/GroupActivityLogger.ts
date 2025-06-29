@@ -160,16 +160,19 @@ export const createGroupActivityLogger = (
 
       if (!result.ok) return result;
 
-      const activities: GroupActivity[] = result.value.rows.map(row => ({
-        id: row.id,
-        groupId: row.groupId as GroupId,
-        actorId: row.actorId as NonEmptyString,
-        action: row.action as GroupOperationType,
-        targetId: row.targetId ? row.targetId as NonEmptyString : undefined,
-        epochNumber: row.epochNumber as NonNegativeInt,
-        timestamp: row.timestamp,
-        metadata: row.metadata ? row.metadata : undefined,
-      }));
+      const activities: GroupActivity[] = result.value.rows.map(row => {
+        const activity: any = {
+          id: row.id,
+          groupId: row.groupId as GroupId,
+          actorId: row.actorId as NonEmptyString,
+          action: row.action as GroupOperationType,
+          epochNumber: row.epochNumber as NonNegativeInt,
+          timestamp: row.timestamp,
+        };
+        if (row.targetId) activity.targetId = row.targetId as NonEmptyString;
+        if (row.metadata) activity.metadata = row.metadata;
+        return activity as GroupActivity;
+      });
 
       return ok(activities as readonly GroupActivity[]);
     },
@@ -196,16 +199,19 @@ export const createGroupActivityLogger = (
 
       if (!result.ok) return result;
 
-      const activities: GroupActivity[] = result.value.rows.map(row => ({
-        id: row.id,
-        groupId: row.groupId as GroupId,
-        actorId: row.actorId as NonEmptyString,
-        action: row.action as GroupOperationType,
-        targetId: row.targetId ? row.targetId as NonEmptyString : undefined,
-        epochNumber: row.epochNumber as NonNegativeInt,
-        timestamp: row.timestamp,
-        metadata: row.metadata ? row.metadata : undefined,
-      }));
+      const activities: GroupActivity[] = result.value.rows.map(row => {
+        const activity: any = {
+          id: row.id,
+          groupId: row.groupId as GroupId,
+          actorId: row.actorId as NonEmptyString,
+          action: row.action as GroupOperationType,
+          epochNumber: row.epochNumber as NonNegativeInt,
+          timestamp: row.timestamp,
+        };
+        if (row.targetId) activity.targetId = row.targetId as NonEmptyString;
+        if (row.metadata) activity.metadata = row.metadata;
+        return activity as GroupActivity;
+      });
 
       return ok(activities as readonly GroupActivity[]);
     },
@@ -232,16 +238,19 @@ export const createGroupActivityLogger = (
 
       if (!result.ok) return result;
 
-      const activities: GroupActivity[] = result.value.rows.map(row => ({
-        id: row.id,
-        groupId: row.groupId as GroupId,
-        actorId: row.actorId as NonEmptyString,
-        action: row.action as GroupOperationType,
-        targetId: row.targetId ? row.targetId as NonEmptyString : undefined,
-        epochNumber: row.epochNumber as NonNegativeInt,
-        timestamp: row.timestamp,
-        metadata: row.metadata ? row.metadata : undefined,
-      }));
+      const activities: GroupActivity[] = result.value.rows.map(row => {
+        const activity: any = {
+          id: row.id,
+          groupId: row.groupId as GroupId,
+          actorId: row.actorId as NonEmptyString,
+          action: row.action as GroupOperationType,
+          epochNumber: row.epochNumber as NonNegativeInt,
+          timestamp: row.timestamp,
+        };
+        if (row.targetId) activity.targetId = row.targetId as NonEmptyString;
+        if (row.metadata) activity.metadata = row.metadata;
+        return activity as GroupActivity;
+      });
 
       return ok(activities as readonly GroupActivity[]);
     },
@@ -277,10 +286,11 @@ export const createActivityMetadata = {
     role,
   }),
 
-  memberRemoved: (reason?: string): ActivityMetadata => ({
-    type: "member_removed",
-    reason,
-  }),
+  memberRemoved: (reason?: string): ActivityMetadata => {
+    const metadata: ActivityMetadata = { type: "member_removed" };
+    if (reason) metadata.reason = reason;
+    return metadata;
+  },
 
   roleChanged: (fromRole: string, toRole: string): ActivityMetadata => ({
     type: "role_changed",
@@ -299,11 +309,11 @@ export const createActivityMetadata = {
     inviteCode,
   }),
 
-  inviteRevoked: (inviteCode: string, reason?: string): ActivityMetadata => ({
-    type: "invite_revoked",
-    inviteCode,
-    reason,
-  }),
+  inviteRevoked: (inviteCode: string, reason?: string): ActivityMetadata => {
+    const metadata: ActivityMetadata = { type: "invite_revoked", inviteCode };
+    if (reason) metadata.reason = reason;
+    return metadata;
+  },
 
   groupUpdated: (changes: Record<string, unknown>): ActivityMetadata => ({
     type: "group_updated",
