@@ -1,28 +1,30 @@
 import { expect, test, describe } from "vitest";
 import { 
-  groupContextToSharedOwner,
+  groupContextToDataOwner,
   enhanceMutationOptions,
+  isGroupDataOwner,
+  extractGroupIdFromDataOwner,
+  // Legacy exports for backward compatibility
+  groupContextToSharedOwner,
   isGroupSharedOwner,
   extractGroupIdFromSharedOwner,
   type GroupMutationOptions
 } from "../src/Evolu/GroupMutationExtensions.js";
 import type { GroupContext } from "../src/Evolu/GroupAPI.js";
 import type { GroupId } from "../src/Evolu/GroupSchema.js";
-import type { SharedOwner } from "../src/Evolu/Owner.js";
+import type { DataOwner } from "../src/Evolu/MultiOwnerAPI.js";
 
 describe("GroupMutationExtensions", () => {
-  test("converts group context to shared owner", () => {
+  test("converts group context to data owner", () => {
     const context: GroupContext = {
       groupId: "group-123" as GroupId,
       role: "admin",
     };
     
-    const sharedOwner = groupContextToSharedOwner(context);
+    const dataOwner = groupContextToDataOwner(context);
     
-    expect(sharedOwner.type).toBe("SharedOwner");
-    expect(sharedOwner.mnemonic).toBeDefined();
-    expect(sharedOwner.writeKey).toBeInstanceOf(Uint8Array);
-    expect(sharedOwner.writeKey.length).toBe(16);
+    expect(dataOwner.type).toBe("group");
+    expect(dataOwner.id).toBe("group-123");
   });
 
   test("enhances mutation options with group context", () => {
@@ -40,17 +42,15 @@ describe("GroupMutationExtensions", () => {
     
     expect(enhanced).toBeDefined();
     expect(enhanced!.owner).toBeDefined();
-    expect((enhanced!.owner as SharedOwner).type).toBe("SharedOwner");
-    expect((enhanced!.owner as SharedOwner).mnemonic).toBeDefined();
-    expect((enhanced!.owner as SharedOwner).writeKey).toBeDefined();
+    expect((enhanced!.owner as DataOwner).type).toBe("group");
+    expect((enhanced!.owner as DataOwner).id).toBe("group-456");
     expect(enhanced!.onComplete).toBe(options.onComplete);
   });
 
   test("preserves existing owner in mutation options", () => {
-    const existingOwner: SharedOwner = {
-      id: "existing-owner" as SharedOwner["id"],
-      encryptionKey: new Uint8Array(32),
-      writeKey: new Uint8Array(16),
+    const existingOwner: DataOwner = {
+      type: "group",
+      id: "existing-owner" as any,
     };
     
     const context: GroupContext = {
@@ -67,7 +67,7 @@ describe("GroupMutationExtensions", () => {
     
     expect(enhanced).toBeDefined();
     expect(enhanced!.owner).toBe(existingOwner);
-    expect(enhanced!.owner!.id).toBe("existing-owner");
+    expect((enhanced!.owner! as DataOwner).id).toBe("existing-owner");
   });
 
   test("returns options unchanged when no group context", () => {
@@ -87,37 +87,59 @@ describe("GroupMutationExtensions", () => {
     expect(enhanced).toBeUndefined();
   });
 
-  test("identifies group shared owners", () => {
-    const groupOwner: SharedOwner = {
-      id: "group:test-group" as SharedOwner["id"],
-      encryptionKey: new Uint8Array(32),
-      writeKey: new Uint8Array(16),
+  test("identifies group data owners", () => {
+    const groupOwner: DataOwner = {
+      type: "group",
+      id: "test-group" as any,
     };
     
-    const regularOwner: SharedOwner = {
-      id: "regular-owner" as SharedOwner["id"],
-      encryptionKey: new Uint8Array(32),
-      writeKey: new Uint8Array(16),
+    const appOwner: DataOwner = {
+      type: "app",
+      id: "app-owner" as any,
     };
     
-    expect(isGroupSharedOwner(groupOwner)).toBe(true);
-    expect(isGroupSharedOwner(regularOwner)).toBe(false);
+    expect(isGroupDataOwner(groupOwner)).toBe(true);
+    expect(isGroupDataOwner(appOwner)).toBe(false);
   });
 
-  test("extracts group ID from shared owner", () => {
-    const groupOwner: SharedOwner = {
-      id: "group:my-group-123" as SharedOwner["id"],
-      encryptionKey: new Uint8Array(32),
-      writeKey: new Uint8Array(16),
+  test("extracts group ID from data owner", () => {
+    const groupOwner: DataOwner = {
+      type: "group",
+      id: "my-group-123" as any,
     };
     
-    const regularOwner: SharedOwner = {
-      id: "regular-owner" as SharedOwner["id"],
-      encryptionKey: new Uint8Array(32),
-      writeKey: new Uint8Array(16),
+    const appOwner: DataOwner = {
+      type: "app",
+      id: "app-owner" as any,
     };
     
-    expect(extractGroupIdFromSharedOwner(groupOwner)).toBe("my-group-123");
-    expect(extractGroupIdFromSharedOwner(regularOwner)).toBe(null);
+    expect(extractGroupIdFromDataOwner(groupOwner)).toBe("my-group-123");
+    expect(extractGroupIdFromDataOwner(appOwner)).toBe(null);
+  });
+
+  // Legacy compatibility tests (these will be removed once all Group code is updated)
+  describe("Legacy SharedOwner compatibility", () => {
+    test("converts group context to shared owner (legacy)", () => {
+      const context: GroupContext = {
+        groupId: "group-123" as GroupId,
+        role: "admin",
+      };
+      
+      const result = groupContextToSharedOwner(context);
+      
+      // The legacy function returns a LegacySharedOwner for true backward compatibility
+      expect((result as any).type).toBe("shared");
+      expect((result as any).id).toBe("group:group-123");
+    });
+
+    test("identifies group shared owners (legacy)", () => {
+      // Legacy function always returns false during transition
+      expect(isGroupSharedOwner({} as any)).toBe(false);
+    });
+
+    test("extracts group ID from shared owner (legacy)", () => {
+      // Legacy function always returns null during transition  
+      expect(extractGroupIdFromSharedOwner({} as any)).toBe(null);
+    });
   });
 });

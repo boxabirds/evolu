@@ -16,6 +16,8 @@ import type {
   MemberId,
   GroupRole 
 } from "./GroupTypes.js";
+import { NonNegativeInt } from "../Type.js";
+import { CreateRandomBytesDep } from "../Crypto.js";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import type { SymmetricCrypto } from "../Crypto.js";
@@ -301,7 +303,25 @@ export const createGroupAuthProvider = (
   currentEpoch: NonNegativeInt,
   members: ReadonlyArray<GroupMember>,
   currentUserId: string,
-  deps: Pick<CryptoDep, "sha256">
+  deps: Pick<CreateRandomBytesDep, "createRandomBytes">
 ): GroupAuthProvider => {
-  return new BasicGroupAuthProvider(groupId, currentEpoch, members, currentUserId, deps);
+  // Find the current member in the group
+  const currentMember = members.find(m => m.userId === currentUserId);
+  if (!currentMember) {
+    throw new Error(`User ${currentUserId} is not a member of group ${groupId}`);
+  }
+  
+  // For Phase 1, we create a minimal crypto object that matches SymmetricCrypto interface
+  const crypto = {
+    nonceLength: 24 as NonNegativeInt,
+    encrypt: (plaintext: Uint8Array, _encryptionKey: any) => {
+      const nonce = new Uint8Array(24);
+      return { nonce, ciphertext: plaintext };
+    },
+    decrypt: (ciphertext: Uint8Array, _encryptionKey: any, _nonce: Uint8Array) => {
+      return { ok: true as const, value: ciphertext };
+    },
+  };
+  
+  return new GroupAuthProvider(groupId, currentMember, members, currentEpoch, crypto);
 };

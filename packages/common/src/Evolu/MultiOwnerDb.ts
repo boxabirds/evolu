@@ -62,50 +62,21 @@ export const createMultiOwnerTableIndexes = (
 ];
 
 /**
- * Updates the evolu_owner table to support multiple owners
- * The current schema assumes a single app owner, but we need to support
- * multiple owners (app owner + shared owners)
+ * Creates the owner registry table to support multiple owners
  */
-export const createMultiOwnerRegistry = (): SafeSql =>
+export const createOwnerRegistry = (): SafeSql =>
   sql`
-    create table evolu_owner_v2 (
+    create table evolu_owner (
       "id" text primary key,
-      "type" text not null check(type in ('app', 'shared')),
-      "mnemonic" text not null,
-      "encryptionKey" blob not null,
+      "type" text not null check(type in ('app', 'group')),
+      "mnemonic" text,
+      "encryptionKey" blob,
       "createdAt" text not null,
       "writeKey" blob,
-      "timestamp" text not null,
-      "addedAt" text not null
+      "timestamp" text not null
     )
     strict;
-  ` as SafeSql;
-
-/**
- * Migration function to convert single-owner tables to multi-owner
- * This adds the ownerId column and sets it to the app owner's ID
- */
-export const migrateTableToMultiOwner = (
-  tableName: string,
-  defaultOwnerId: OwnerId,
-): ReadonlyArray<SafeSql> => [
-  // Add ownerId column as BLOB (to match evolu_history pattern)
-  sql`
-    alter table ${sql.identifier(tableName)}
-    add column "ownerId" blob;
-  ` as SafeSql,
-  
-  // Set default owner for existing rows using ownerIdToBinaryOwnerId conversion
-  // For now, we'll cast the text ID to blob for storage
-  sql`
-    update ${sql.identifier(tableName)}
-    set "ownerId" = cast(${defaultOwnerId} as blob)
-    where "ownerId" is null;
-  ` as SafeSql,
-  
-  // Create indexes after data is populated
-  ...createMultiOwnerTableIndexes(tableName),
-];
+  `.sql;
 
 /**
  * Checks if a table has multi-owner support

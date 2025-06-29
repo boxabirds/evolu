@@ -21,6 +21,7 @@ import { objectToEntries } from "../Object.js";
 import { RandomDep } from "../Random.js";
 import { createRef, Ref } from "../Ref.js";
 import { err, ok, Result } from "../Result.js";
+import { createTransferableError } from "../Error.js";
 import {
   createSqlite,
   CreateSqliteDriverDep,
@@ -51,10 +52,9 @@ import {
   OwnerWithWriteAccess,
   OwnerId,
 } from "./Owner.js";
-import {
-  migrateToMultiOwner,
-  needsMultiOwnerMigration,
-} from "./MultiOwnerMigration.js";
+import { createOwnerRegistry } from "./MultiOwnerDb.js";
+import { OwnerManagerImpl, applyMultiOwnerConfig } from "./MultiOwnerImpl.js";
+import { MultiOwnerConfig } from "./MultiOwnerAPI.js";
 import {
   applyProtocolMessageAsClient,
   Base64Url256,
@@ -290,19 +290,31 @@ export const createDbWorkerForPlatform = (
 
         const [appOwner, ownerRow] = appOwnerAndOwnerRow.value;
 
-        // Check if we need to migrate to multi-owner
-        if (needsMultiOwnerMigration(currentDbSchema.value)) {
-          const migrationResult = migrateToMultiOwner({ sqlite })(
-            currentDbSchema.value,
-            appOwner.id,
-          );
-          if (!migrationResult.ok) return migrationResult;
+        // Initialize multi-owner support if configured
+        const multiOwnerConfig: MultiOwnerConfig = initMessage.config.multiOwner ?? { enabled: false };
+        
+        if (multiOwnerConfig.enabled) {
+          // Create owner registry table if it doesn't exist
+          const registrySQL = createOwnerRegistry();
+          const createRegistryResult = sqlite.exec({ sql: registrySQL, parameters: [] });
+          if (!createRegistryResult.ok) {
+            return createRegistryResult;
+          }
           
-          platformDeps.console.log(
-            "[db]",
-            "Migrated to multi-owner",
-            migrationResult.value,
-          );
+          // Set up owner manager
+          const ownerManagerDeps = {
+            sqlite,
+            time: platformDeps.time,
+            nanoIdLib: platformDeps.nanoIdLib,
+          };
+          const ownerManager = new OwnerManagerImpl(ownerManagerDeps, appOwner);
+          
+          // Apply multi-owner configuration
+          const configResult = applyMultiOwnerConfig(ownerManagerDeps, multiOwnerConfig, ownerManager);
+          if (!configResult.ok) {
+            // Convert OwnerError to TransferableError to match expected return type
+            return err(createTransferableError(configResult.error));
+          }
         }
 
         const depsWithoutSyncAndStorage = {

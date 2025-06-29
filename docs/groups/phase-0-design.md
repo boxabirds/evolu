@@ -18,23 +18,27 @@ Evolu currently supports only a single owner (user) per database. This limitatio
 
 ## Core Concepts
 
-### Owner Types
+### Multi-Owner Foundation
+
+Phase 0 creates the foundation for multiple data owners without the flawed SharedOwner concept:
 
 ```typescript
-type Owner = {
-  type: "Owner";
+// App owner (existing)
+type AppOwner = {
+  type: "AppOwner";
   id: OwnerId;
   mnemonic: string;
   writeKey: Uint8Array;
 };
 
-type SharedOwner = {
-  type: "SharedOwner";
+// Simple data owner concept (foundation for Groups)
+interface DataOwner {
+  type: "app" | "group";
   id: OwnerId;
-  mnemonic: string;
-  writeKey: Uint8Array;
-};
+}
 ```
+
+**Key insight**: We don't need complex owner types. Groups will provide the collaboration layer on top of this simple multi-owner foundation.
 
 ### Data Partitioning
 
@@ -92,13 +96,16 @@ CREATE TABLE todo (
   FOREIGN KEY (ownerId) REFERENCES evolu_owner(id)
 );
 
--- Owner registry (new system table)
-CREATE TABLE evolu_owner (
-  id BLOB PRIMARY KEY,
-  type TEXT NOT NULL CHECK(type IN ('app', 'shared')),
-  mnemonic TEXT,              -- Encrypted with user's key
-  writeKey BLOB,              -- Encrypted with user's key
-  createdAt INTEGER NOT NULL
+-- Owner registry (updated system table)
+CREATE TABLE evolu_owner_v2 (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK(type IN ('app', 'group')),
+  mnemonic TEXT,              -- For app owner only
+  encryptionKey BLOB,         -- For app owner only
+  writeKey BLOB,              -- For app owner only
+  createdAt TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  addedAt TEXT NOT NULL
 );
 
 -- Indexes for performance
@@ -128,45 +135,59 @@ db.selectFrom("todo")
 ### Evolu API Extensions
 
 ```typescript
-interface Evolu {
-  // Owner management
-  createSharedOwner(): SharedOwner;
-  addSharedOwner(mnemonic: string): Result<SharedOwner, Error>;
-  listOwners(): Array<Owner | SharedOwner>;
-  setActiveOwner(owner: Owner | SharedOwner): void;
+interface MultiOwnerEvolu {
+  // Low-level owner management (Groups will provide higher-level APIs)
+  owners: {
+    getAppOwner(): AppOwner;
+    addDataOwner(ownerId: OwnerId): Result<DataOwner, OwnerError>;
+    listOwners(): Array<{ owner: AppOwner | DataOwner; addedAt: string }>;
+    setActiveOwner(owner: AppOwner | DataOwner): void;
+  };
   
   // Owner-aware mutations
-  insert<T>(table: string, row: T, options?: { owner?: Owner | SharedOwner }): void;
-  update<T>(table: string, row: T, options?: { owner?: Owner | SharedOwner }): void;
-  delete(table: string, id: Id, options?: { owner?: Owner | SharedOwner }): void;
+  insert<T>(table: string, row: T, options?: { owner?: AppOwner | DataOwner }): void;
+  update<T>(table: string, row: T, options?: { owner?: AppOwner | DataOwner }): void;
+  delete(table: string, id: Id, options?: { owner?: AppOwner | DataOwner }): void;
   
   // Owner-aware queries
-  createQuery<T>(query: QueryBuilder, options?: { owner?: Owner | SharedOwner }): Query<T>;
+  createQuery<T>(query: QueryBuilder, options?: { 
+    owner?: AppOwner | DataOwner | Array<AppOwner | DataOwner>;
+    includeAllOwners?: boolean;
+  }): Query<T>;
 }
 ```
 
 ### Usage Examples
 
 ```typescript
-// Create a shared space
-const sharedOwner = evolu.createSharedOwner();
+// Phase 0 provides low-level multi-owner foundation
+// Groups will provide the high-level collaboration APIs
 
-// Insert data into shared space
+// Register a data owner (Groups will do this automatically)
+const groupOwner = evolu.owners.addDataOwner("group_abc123" as OwnerId);
+
+// Insert data with specific owner
 evolu.insert("todo", { 
-  title: "Team task" 
+  title: "Task" 
 }, { 
-  owner: sharedOwner 
+  owner: groupOwner 
 });
 
-// Query shared data
-const sharedTodos = evolu.createQuery(
+// Query data from specific owner
+const ownerTodos = evolu.createQuery(
   (db) => db.selectFrom("todo").selectAll(),
-  { owner: sharedOwner }
+  { owner: groupOwner }
+);
+
+// Query data from multiple owners
+const allTodos = evolu.createQuery(
+  (db) => db.selectFrom("todo").selectAll(),
+  { includeAllOwners: true }
 );
 
 // Switch active owner context
-evolu.setActiveOwner(sharedOwner);
-// Now all operations default to sharedOwner
+evolu.owners.setActiveOwner(groupOwner);
+// Now all operations default to groupOwner
 ```
 
 ## Sync Protocol Changes
@@ -202,11 +223,11 @@ interface SyncMessage {
 - Queries cannot cross owner boundaries without explicit permission
 - Mutations verified against owner's writeKey
 
-### Shared Owner Access
+### Multi-Owner Access
 
-- Shared owners use mnemonic for key exchange
-- Adding shared owner requires mnemonic
-- Each client maintains local copy of shared owner keys
+- Each owner has independent data partition
+- App owner handles encryption/decryption for all data
+- Groups layer will add proper sharing mechanics on top of this foundation
 
 ## Migration Strategy
 
@@ -264,8 +285,8 @@ async function migrateToMultiOwner(evolu: Evolu) {
 ```typescript
 describe("Multi-owner support", () => {
   test("data isolation between owners", async () => {
-    const owner1 = evolu.createSharedOwner();
-    const owner2 = evolu.createSharedOwner();
+    const owner1 = evolu.owners.addDataOwner("owner1" as OwnerId);
+    const owner2 = evolu.owners.addDataOwner("owner2" as OwnerId);
     
     evolu.insert("todo", { title: "Owner 1 task" }, { owner: owner1 });
     evolu.insert("todo", { title: "Owner 2 task" }, { owner: owner2 });
@@ -283,24 +304,24 @@ describe("Multi-owner support", () => {
 
 ### Integration Tests
 
-- Multi-client sync with shared owners
-- Owner permission enforcement
+- Multi-client sync with multiple data owners
+- Owner-based data isolation enforcement
 - Migration from single to multi-owner
 
 ### E2E Tests
 
 - Real relay with multiple connections
-- Cross-client shared data updates
-- Conflict resolution with multiple owners
+- Multi-owner data partitioning
+- Conflict resolution across owners
 
 ## Future Considerations
 
 ### Phase 1: Groups
 
 With multi-owner support, groups become:
-- Special type of shared owner
-- Additional metadata (name, members, roles)
-- Permission system on top of owner isolation
+- High-level collaboration layer built on DataOwner foundation
+- Rich metadata (name, members, roles, permissions)
+- Proper sharing mechanics with encryption and access control
 
 ### Advanced Features
 
@@ -311,10 +332,15 @@ With multi-owner support, groups become:
 
 ## Summary
 
-This design enables multiple independent owners within a single Evolu database while maintaining:
+This design enables multiple independent data owners within a single Evolu database while maintaining:
 - Strong data isolation
 - Backward compatibility
 - Good performance
 - Clear security boundaries
+
+**Key Insight**: Phase 0 creates a simple multi-owner foundation without the complexity of SharedOwner. Groups will add the collaboration layer (invites, members, permissions, encryption) on top of this solid foundation.
+
+**What Phase 0 IS**: Database partitioning by owner + basic owner management APIs
+**What Phase 0 IS NOT**: Collaboration features, sharing mechanisms, or complex owner types
 
 The implementation focuses on concrete database and API changes rather than abstract interfaces, ensuring a working foundation for the Groups feature.

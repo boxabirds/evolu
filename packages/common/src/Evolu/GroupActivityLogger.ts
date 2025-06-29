@@ -12,7 +12,20 @@ import type { TimeDep } from "../Time.js";
 import type { NanoIdLibDep } from "../NanoId.js";
 import type { GroupId } from "./GroupTypes.js";
 import type { NonEmptyString, NonNegativeInt } from "../Type.js";
-import type { GroupOperationType } from "./GroupProtocolMessage.js";
+/**
+ * Activity action types that match the database schema.
+ */
+export type GroupActivityAction = 
+  | "group_created"
+  | "member_added"
+  | "member_removed"
+  | "member_left"
+  | "role_changed"
+  | "epoch_rotated"
+  | "invite_created"
+  | "invite_used"
+  | "invite_revoked"
+  | "group_updated";
 
 /**
  * Group activity entry.
@@ -21,7 +34,7 @@ export interface GroupActivity {
   readonly id: string;
   readonly groupId: GroupId;
   readonly actorId: NonEmptyString;
-  readonly action: GroupOperationType;
+  readonly action: GroupActivityAction;
   readonly targetId?: NonEmptyString;
   readonly epochNumber: NonNegativeInt;
   readonly timestamp: string; // DateIso
@@ -57,7 +70,7 @@ export interface GroupActivityLogger {
   readonly log: (
     groupId: GroupId,
     actorId: NonEmptyString,
-    action: GroupOperationType,
+    action: GroupActivityAction,
     epochNumber: NonNegativeInt,
     targetId?: NonEmptyString,
     metadata?: ActivityMetadata

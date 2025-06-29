@@ -239,11 +239,11 @@ export interface MutationOptions {
   readonly onlyValidate?: boolean;
 
   /**
-   * The owner to use for this mutation. Can be a {@link ShardOwner} for sharding
-   * app data or a {@link SharedOwner} for collaborative write access. If
-   * omitted, defaults to the app's {@link AppOwner}.
+   * The owner to use for this mutation. Can be any data owner.
+   * If omitted, defaults to the app's {@link AppOwner}.
+   * This is the foundation for multi-owner support that Groups builds upon.
    */
-  readonly owner?: ShardOwner | SharedOwner;
+  readonly owner?: import("./MultiOwnerAPI.js").AnyOwner;
 }
 
 /**

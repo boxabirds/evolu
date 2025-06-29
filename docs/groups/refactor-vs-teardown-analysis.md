@@ -20,11 +20,11 @@ const query = db
 
 ### 2. CRDT Engine - 100% Reusable (Thanks to Phase 0!)
 ```typescript
-// Already abstracted in Phase 0
-const timestamp = createInitialTimestampWithContext(groupContext);
+// Phase 0 provides multi-owner foundation
+const timestamp = createInitialTimestamp(dataOwner);
 ```
-- **Why**: Phase 0 decoupled CRDT from owners
-- **Changes**: Just provide GroupSecurityContext
+- **Why**: Phase 0 creates multi-owner data partitioning
+- **Changes**: Groups adds collaboration layer on top
 - **Benefit**: Battle-tested sync algorithm
 
 ### 3. Event System (Store) - 100% Reusable
@@ -95,69 +95,76 @@ const evoluGroupsSchema = {
 Instead of teardown, create parallel abstractions:
 
 ```typescript
-// Existing (keep working)
-interface OwnerSecurityContext {
-  createNodeId(): NodeId;
-  encrypt(data: Uint8Array): Promise<Uint8Array>;
+// Phase 0: Simple multi-owner foundation
+interface MultiOwnerEvolu {
+  owners: {
+    addDataOwner(ownerId: OwnerId): DataOwner;
+    setActiveOwner(owner: DataOwner): void;
+  };
+  insert(table, data, { owner?: DataOwner }): void;
+  createQuery(query, { owner?: DataOwner }): Query;
 }
 
-// New (add alongside)
-interface GroupSecurityContext {
-  createNodeId(): NodeId;
-  encrypt(data: Uint8Array, epoch: Epoch): Promise<Uint8Array>;
-  validateEpoch(epoch: Epoch): boolean;
+// Phase 1: Groups layer on top
+interface GroupEvolu extends MultiOwnerEvolu {
+  groups: {
+    create(name: string): Group;
+    join(invite: GroupInvite): void;
+    addMember(groupId, userId): void;
+  };
 }
-
-// Unified interface
-type SecurityContext = OwnerSecurityContext | GroupSecurityContext;
 ```
 
 ## Refactoring Plan
 
-### Phase 1: Create Group Abstractions (1 week)
+### Phase 0: Multi-Owner Foundation (CURRENT)
 ```typescript
-// New files alongside existing:
-- GroupSecurityContext.ts
-- GroupAuthProvider.ts  
-- GroupEncryption.ts
-- EpochManager.ts
+// Create multi-owner foundation:
+- MultiOwnerAPI.ts      // API types
+- MultiOwnerImpl.ts     // Implementation  
+- MultiOwnerEvolu.ts    // Integration
+- MultiOwnerMigration.ts // Database migration
 ```
 
-### Phase 2: Adapt Storage Layer (1 week)
+### Phase 1: Groups Layer (1-2 weeks)
 ```typescript
-// Modify applyMessages to handle both:
-if (isGroupContext(context)) {
-  return this.applyGroupMessages(messages);
-} else {
-  return this.applyOwnerMessages(messages); // Existing logic
-}
+// Build groups on multi-owner foundation:
+- GroupManager.ts       // Group CRUD operations
+- GroupInvites.ts       // Invitation system
+- GroupMembers.ts       // Member management
+- GroupSecurity.ts      // Access control
 ```
 
-### Phase 3: Extend Protocol (1 week)
+### Phase 2: Group Database Schema (1 week)
 ```typescript
-// Add group message types:
-interface GroupProtocolMessage {
-  groupId: GroupId;
-  epoch: Epoch;
-  signature: GroupSignature;
-  changes: DbChange[]; // Reuse existing!
-}
+// Add group tables on top of multi-owner:
+CREATE TABLE evolu_group (
+  id TEXT PRIMARY KEY,
+  ownerId BLOB NOT NULL,  -- Links to multi-owner system
+  name TEXT,
+  createdAt TEXT
+);
+
+CREATE TABLE evolu_group_member (
+  groupId TEXT,
+  userId TEXT,
+  role TEXT,
+  joinedAt TEXT
+);
 ```
 
-### Phase 4: Update Public API (1 week)
+### Phase 3: Group API Integration (1 week)
 ```typescript
-// Add group support to existing API:
-interface Evolu {
-  // Existing owner methods still work
-  
-  // New group methods
-  joinGroup(invite: GroupInvite): Promise<void>;
-  createGroup(name: string): Promise<Group>;
-  
-  // Mutations now accept group context
-  mutate(mutations: Mutations, options?: {
-    context?: SecurityContext; // Owner or Group
-  }): void;
+// Extend Evolu with group capabilities:
+interface GroupEvolu extends MultiOwnerEvolu {
+  groups: {
+    create(name: string): Promise<Group>;
+    join(invite: GroupInvite): Promise<void>;
+    addMember(groupId: GroupId, userId: string): Promise<void>;
+    
+    // All mutations/queries automatically work with groups
+    // because they're built on the multi-owner foundation
+  };
 }
 ```
 
@@ -205,19 +212,24 @@ But this is **orthogonal** to the core Evolu architecture - we can add it withou
 **Refactor, don't teardown**. The Evolu codebase is well-architected with good separation of concerns. We can:
 
 1. Keep 70-80% of existing code
-2. Add group abstractions alongside owner abstractions
-3. Gradually migrate functionality
+2. Build multi-owner foundation (Phase 0) - SIMPLE data partitioning
+3. Add groups layer on top (Phase 1) - Rich collaboration features
 4. Ship faster with less risk
-5. Maintain backward compatibility if desired
+5. Maintain backward compatibility
 
-The only "radical" part needs to be the security model - everything else can be evolutionary rather than revolutionary.
+**Key insight**: We don't need SharedOwner's complexity. Phase 0 creates simple multi-owner data partitioning. Groups adds collaboration on top.
 
 ## Next Steps
 
-1. Create `GroupSecurityContext` extending Phase 0 abstractions
-2. Implement `EpochManager` for forward secrecy
-3. Add group tables to schema
-4. Extend protocol with group messages
+1. Complete Phase 0 multi-owner foundation (database + API)
+2. Build Groups layer on the foundation:
+   - Group management (create, join, invite)
+   - Member management (add, remove, roles)
+   - Security (access control, encryption)
+3. Add group tables leveraging multi-owner partitioning
+4. Extend sync protocol for group coordination
 5. Update public API with group methods
 
 This approach delivers groups in 4-6 weeks instead of 12+, while maintaining code quality and reliability.
+
+**Current Status**: Phase 0 Step 1 (Database) ✅ completed, Step 2 (API) in progress.

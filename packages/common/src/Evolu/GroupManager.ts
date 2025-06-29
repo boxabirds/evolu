@@ -29,7 +29,7 @@ import type { EpochManager } from "./EpochManager.js";
 import { InMemoryEpochManager } from "./EpochManager.js";
 import type { GroupAuthProvider } from "./GroupAuthProvider.js";
 import { createGroupAuthProvider } from "./GroupAuthProvider.js";
-import type { GroupActivityLogger, GroupActivity } from "./GroupActivityLogger.js";
+import type { GroupActivityLogger, GroupActivity, GroupActivityAction } from "./GroupActivityLogger.js";
 import { createGroupActivityLogger, createActivityMetadata } from "./GroupActivityLogger.js";
 
 /**
@@ -414,7 +414,7 @@ export const createGroupManager = (
           const logResult = deps.activityLogger.log(
             groupId,
             deps.currentUserId as NonEmptyString,
-            "group_create" as GroupOperationType,
+            "group_created" as GroupActivityAction,
             1 as NonNegativeInt,
             undefined,
             createActivityMetadata.groupCreated(nameResult.value)

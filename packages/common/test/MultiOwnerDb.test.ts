@@ -1,5 +1,5 @@
 import { expect, test, describe } from "vitest";
-import { createMultiOwnerTable, createMultiOwnerTableIndexes, tableHasOwnerColumn } from "../src/Evolu/MultiOwnerDb.js";
+import { createMultiOwnerTable, createMultiOwnerTableIndexes, createOwnerRegistry, tableHasOwnerColumn } from "../src/Evolu/MultiOwnerDb.js";
 import { sql } from "../src/Sqlite.js";
 
 describe("MultiOwnerDb", () => {
@@ -52,5 +52,17 @@ describe("MultiOwnerDb", () => {
     expect(tableHasOwnerColumn(["id", "title", "ownerId"])).toBe(true);
     expect(tableHasOwnerColumn(["id", "title", "createdAt"])).toBe(false);
     expect(tableHasOwnerColumn([])).toBe(false);
+  });
+
+  test("createOwnerRegistry creates correct schema", () => {
+    const registrySql = createOwnerRegistry();
+    
+    expect(registrySql).toContain("create table evolu_owner");
+    expect(registrySql).toContain('"id" text primary key');
+    expect(registrySql).toContain("check(type in ('app', 'group'))");
+    expect(registrySql).toContain('"mnemonic" text');
+    expect(registrySql).toContain('"encryptionKey" blob');
+    expect(registrySql).toContain('"writeKey" blob');
+    expect(registrySql).toContain('"timestamp" text not null');
   });
 });

@@ -2,13 +2,14 @@
  * Group mutation extensions for Evolu.
  * 
  * This module extends mutations to work with group contexts by leveraging
- * the existing SharedOwner infrastructure.
+ * the Phase 0 multi-owner foundation.
  */
 
 import type { MutationOptions } from "./Schema.js";
 import type { GroupContext } from "./GroupAPI.js";
-import type { SharedOwner } from "./Owner.js";
+import type { DataOwner } from "./MultiOwnerAPI.js";
 import type { GroupId } from "./GroupSchema.js";
+import { OwnerId } from "./Owner.js";
 
 /**
  * Extended mutation options that support group context.
@@ -16,7 +17,7 @@ import type { GroupId } from "./GroupSchema.js";
 export interface GroupMutationOptions extends MutationOptions {
   /**
    * The group context to use for this mutation. If specified, the mutation
-   * will be performed in the context of the group, creating a SharedOwner
+   * will be performed in the context of the group, creating a DataOwner
    * internally.
    * 
    * If both `groupContext` and `owner` are specified, `owner` takes precedence.
@@ -25,32 +26,19 @@ export interface GroupMutationOptions extends MutationOptions {
 }
 
 /**
- * Convert a group context to a SharedOwner.
+ * Convert a group context to a DataOwner.
  * 
- * In Phase 1, this creates a placeholder SharedOwner. Phase 2 will
- * implement proper key derivation and encryption.
+ * This creates a DataOwner representing the group for Phase 0 multi-owner support.
  */
-export const groupContextToSharedOwner = (
+export const groupContextToDataOwner = (
   context: GroupContext
-): SharedOwner => {
-  // Phase 1: Create a placeholder SharedOwner
-  // Phase 2 will derive these from group epoch keys
-  
-  // Create a dummy mnemonic for now
-  const dummyMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" as import("../Type.js").Mnemonic;
-  
-  // Create placeholder writeKey
-  const writeKeyBytes = new Uint8Array(16);
-  // Fill with dummy data for Phase 1
-  for (let i = 0; i < 16; i++) {
-    writeKeyBytes[i] = i;
-  }
-  const writeKey = writeKeyBytes as import("./Owner.js").WriteKey;
+): DataOwner => {
+  // Convert the GroupId to an OwnerId for the multi-owner system
+  const ownerId = context.groupId as unknown as OwnerId;
   
   return {
-    type: "SharedOwner",
-    mnemonic: dummyMnemonic,
-    writeKey,
+    type: "group",
+    id: ownerId,
   };
 };
 
@@ -58,7 +46,7 @@ export const groupContextToSharedOwner = (
  * Enhance mutation options with group context support.
  * 
  * If a groupContext is provided and no owner is specified, this creates
- * a SharedOwner from the group context.
+ * a DataOwner from the group context.
  */
 export const enhanceMutationOptions = (
   options?: GroupMutationOptions
@@ -72,11 +60,11 @@ export const enhanceMutationOptions = (
     return options;
   }
   
-  // If groupContext is provided, convert to SharedOwner
+  // If groupContext is provided, convert to DataOwner
   if (groupContext) {
     return {
       ...baseOptions,
-      owner: groupContextToSharedOwner(groupContext),
+      owner: groupContextToDataOwner(groupContext),
     };
   }
   
@@ -85,23 +73,62 @@ export const enhanceMutationOptions = (
 };
 
 /**
- * Check if a SharedOwner represents a group context.
- * Phase 1: This is a placeholder - we can't determine this from SharedOwner alone.
- * Phase 2: Will use proper group key derivation.
+ * Check if a DataOwner represents a group context.
  */
-export const isGroupSharedOwner = (owner: SharedOwner): boolean => {
-  // Phase 1: Always return false since we can't determine this
-  return false;
+export const isGroupDataOwner = (owner: DataOwner): boolean => {
+  return owner.type === "group";
 };
 
 /**
- * Extract GroupId from a group SharedOwner.
- * Phase 1: This is a placeholder - we can't extract GroupId from SharedOwner.
- * Phase 2: Will use proper group key mapping.
+ * Extract GroupId from a group DataOwner.
  */
-export const extractGroupIdFromSharedOwner = (
-  owner: SharedOwner
+export const extractGroupIdFromDataOwner = (
+  owner: DataOwner
 ): GroupId | null => {
-  // Phase 1: Always return null since we can't extract this
+  if (owner.type === "group") {
+    return owner.id as unknown as GroupId;
+  }
+  return null;
+};
+
+// Legacy exports for backward compatibility during transition
+// These will be removed once all Group code is updated
+
+/**
+ * Legacy SharedOwner interface for backward compatibility.
+ * @deprecated Use DataOwner instead
+ */
+export interface LegacySharedOwner {
+  readonly id: string;
+  readonly type: "shared";
+}
+
+/**
+ * @deprecated Use groupContextToDataOwner instead
+ */
+export const groupContextToSharedOwner = (
+  context: GroupContext
+): LegacySharedOwner => {
+  return {
+    id: `group:${context.groupId}`,
+    type: "shared",
+  };
+};
+
+/**
+ * @deprecated Use isGroupDataOwner instead  
+ */
+export const isGroupSharedOwner = (owner: any): owner is LegacySharedOwner => {
+  return owner && owner.type === "shared" && typeof owner.id === "string" && owner.id.startsWith("group:");
+};
+
+/**
+ * @deprecated Use extractGroupIdFromDataOwner instead
+ */
+export const extractGroupIdFromSharedOwner = (owner: any): GroupId | null => {
+  if (isGroupSharedOwner(owner)) {
+    const groupIdPart = owner.id.replace("group:", "");
+    return groupIdPart as GroupId;
+  }
   return null;
 };

@@ -2,6 +2,7 @@ import { ConsoleConfig } from "../Console.js";
 import { getOrThrow } from "../Result.js";
 import { Mnemonic, SimpleName } from "../Type.js";
 import type { DbIndexesBuilder } from "./Kysely.js";
+import { MultiOwnerConfig } from "./MultiOwnerAPI.js";
 
 export interface Config extends ConsoleConfig {
   /**
@@ -82,6 +83,15 @@ export interface Config extends ConsoleConfig {
    * The default value is: `false`.
    */
   readonly inMemory?: boolean;
+
+  /**
+   * Multi-owner configuration for group collaboration features.
+   * When enabled, allows multiple data owners to share the same database.
+   * This is the foundation for group functionality.
+   *
+   * The default value is: `{ enabled: false }`.
+   */
+  readonly multiOwner?: MultiOwnerConfig;
 }
 
 export interface ConfigDep {
