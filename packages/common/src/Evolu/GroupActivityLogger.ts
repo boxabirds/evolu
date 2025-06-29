@@ -160,7 +160,7 @@ export const createGroupActivityLogger = (
 
       if (!result.ok) return result;
 
-      const activities = result.value.rows.map(row => ({
+      const activities: GroupActivity[] = result.value.rows.map(row => ({
         id: row.id,
         groupId: row.groupId as GroupId,
         actorId: row.actorId as NonEmptyString,
@@ -168,10 +168,10 @@ export const createGroupActivityLogger = (
         targetId: row.targetId ? row.targetId as NonEmptyString : undefined,
         epochNumber: row.epochNumber as NonNegativeInt,
         timestamp: row.timestamp,
-        metadata: row.metadata || undefined,
+        metadata: row.metadata ? row.metadata : undefined,
       }));
 
-      return ok(activities);
+      return ok(activities as readonly GroupActivity[]);
     },
 
     getActivitiesByActor: (actorId, limit = 50, offset = 0) => {
@@ -196,7 +196,7 @@ export const createGroupActivityLogger = (
 
       if (!result.ok) return result;
 
-      const activities = result.value.rows.map(row => ({
+      const activities: GroupActivity[] = result.value.rows.map(row => ({
         id: row.id,
         groupId: row.groupId as GroupId,
         actorId: row.actorId as NonEmptyString,
@@ -204,10 +204,10 @@ export const createGroupActivityLogger = (
         targetId: row.targetId ? row.targetId as NonEmptyString : undefined,
         epochNumber: row.epochNumber as NonNegativeInt,
         timestamp: row.timestamp,
-        metadata: row.metadata || undefined,
+        metadata: row.metadata ? row.metadata : undefined,
       }));
 
-      return ok(activities);
+      return ok(activities as readonly GroupActivity[]);
     },
 
     getActivitiesForTarget: (targetId, limit = 50, offset = 0) => {
@@ -232,7 +232,7 @@ export const createGroupActivityLogger = (
 
       if (!result.ok) return result;
 
-      const activities = result.value.rows.map(row => ({
+      const activities: GroupActivity[] = result.value.rows.map(row => ({
         id: row.id,
         groupId: row.groupId as GroupId,
         actorId: row.actorId as NonEmptyString,
@@ -240,10 +240,10 @@ export const createGroupActivityLogger = (
         targetId: row.targetId ? row.targetId as NonEmptyString : undefined,
         epochNumber: row.epochNumber as NonNegativeInt,
         timestamp: row.timestamp,
-        metadata: row.metadata || undefined,
+        metadata: row.metadata ? row.metadata : undefined,
       }));
 
-      return ok(activities);
+      return ok(activities as readonly GroupActivity[]);
     },
 
     cleanup: (olderThanDays) => {
