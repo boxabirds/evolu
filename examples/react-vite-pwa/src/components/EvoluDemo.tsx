@@ -192,14 +192,12 @@ export const EvoluExample = memo(function EvoluExample() {
   return (
     <div>
       <div>
-        <EvoluProvider value={evolu}>
-          <NotificationBar />
-          <Suspense>
-            <Todos />
-            <TodoCategories />
-            <OwnerActions />
-          </Suspense>
-        </EvoluProvider>
+        <NotificationBar />
+        <Suspense>
+          <Todos />
+          <TodoCategories />
+          <OwnerActions />
+        </Suspense>
       </div>
     </div>
   );

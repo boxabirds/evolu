@@ -14,7 +14,7 @@ import {
   nullOr,
   literal,
   union,
-  boolean,
+  Boolean,
 } from "../Type.js";
 import { SqliteBoolean } from "../Sqlite.js";
 import type { 
@@ -24,6 +24,7 @@ import type {
   EpochKeyId,
   GroupRole,
 } from "./GroupTypes.js";
+import type { GroupActivityAction } from "./GroupActivityLogger.js";
 
 // Re-export group types
 export type { 
@@ -57,7 +58,7 @@ export const evolu_group_member = {
   id: String as unknown as typeof String & { _type: MemberId },
   groupId: String as unknown as typeof String & { _type: GroupId },
   userId: NonEmptyString, // The user's ID
-  role: union([literal("admin"), literal("member")]) as unknown as typeof String & { _type: GroupRole },
+  role: union(literal("admin"), literal("member")) as unknown as typeof String & { _type: GroupRole },
   publicKey: NonEmptyString, // Base64 encoded public key
   joinedAt: DateIso,
   leftAt: nullOr(DateIso),
@@ -76,12 +77,12 @@ export const evolu_epoch = {
   epochNumber: NonNegativeInt,
   startedAt: DateIso,
   endedAt: nullOr(DateIso),
-  reason: union([
+  reason: union(
     literal("initial"),
     literal("member_removed"),
     literal("key_rotation"),
     literal("manual"),
-  ]),
+  ),
   initiatedBy: NonEmptyString, // User ID who initiated the epoch change
   keyHash: nullOr(NonEmptyString), // Hash of the epoch key (Phase 2)
   metadata: nullOr(String), // JSON string for additional data
@@ -108,7 +109,7 @@ export const evolu_group_invite = {
   id: NonEmptyString, // Unique invite ID
   groupId: String as unknown as typeof String & { _type: GroupId },
   inviteCode: NonEmptyString, // The shareable invite code
-  role: union([literal("admin"), literal("member")]) as unknown as typeof String & { _type: GroupRole },
+  role: union(literal("admin"), literal("member")) as unknown as typeof String & { _type: GroupRole },
   createdBy: NonEmptyString, // User ID who created the invite
   createdAt: DateIso,
   expiresAt: DateIso,
@@ -127,7 +128,7 @@ export const evolu_group_activity = {
   id: NonEmptyString,
   groupId: String as unknown as typeof String & { _type: GroupId },
   actorId: NonEmptyString, // User ID who performed the action
-  action: union([
+  action: union(
     literal("group_created"),
     literal("member_added"),
     literal("member_removed"),
@@ -137,8 +138,8 @@ export const evolu_group_activity = {
     literal("invite_created"),
     literal("invite_used"),
     literal("invite_revoked"),
-    literal("group_updated"),
-  ]),
+    literal("group_updated")
+  ) as unknown as typeof String & { _type: GroupActivityAction },
   targetId: nullOr(NonEmptyString), // Target user ID (if applicable)
   epochNumber: NonNegativeInt, // Epoch when action occurred
   timestamp: DateIso,

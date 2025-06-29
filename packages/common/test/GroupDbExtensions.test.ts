@@ -24,9 +24,11 @@ describe("GroupDbExtensions", () => {
     const deps = createMockSqliteDep();
     const config: Config = {
       syncUrl: "wss://example.com",
-      isSynced: false,
-      log: false,
-    };
+      name: "Evolu" as import("../src/Type.js").SimpleName,
+      reloadUrl: "/",
+      maxDrift: 5 * 60 * 1000,
+      enableLogging: false,
+    } as Config;
     
     const result = initializeGroupTables(deps, config);
     expect(result.ok).toBe(true);
@@ -39,8 +41,10 @@ describe("GroupDbExtensions", () => {
     const deps = createMockSqliteDep();
     const config: GroupConfig = {
       syncUrl: "wss://example.com",
-      isSynced: false,
-      log: false,
+      name: "Evolu" as import("../src/Type.js").SimpleName,
+      reloadUrl: "/",
+      maxDrift: 5 * 60 * 1000,
+      enableLogging: false,
       enableGroups: true,
     };
     
@@ -69,13 +73,13 @@ describe("GroupDbExtensions", () => {
     expect(groupStorage.someMethod).toBe(baseStorage.someMethod);
     
     // Should add group methods
-    expect(groupStorage.getGroupId).toBeDefined();
+    expect((groupStorage as any).getGroupId).toBeDefined();
     expect(groupStorage.validateGroupAccess).toBeDefined();
     expect(groupStorage.getGroupEpoch).toBeDefined();
     
     // Phase 1 implementations return defaults
-    expect(groupStorage.getGroupId?.("owner-123" as any)).toEqual({ ok: true, value: null });
-    expect(groupStorage.validateGroupAccess?.("owner-123" as any, "group-123" as any)).toEqual({ ok: true, value: false });
+    expect((groupStorage as any).getGroupId?.("owner-123" as any)).toEqual({ ok: true, value: null });
+    expect((groupStorage as any).validateGroupAccess?.("owner-123" as any, "group-123" as any, 1 as any)).toEqual({ ok: true, value: false });
     expect(groupStorage.getGroupEpoch?.("group-123" as any)).toEqual({ ok: true, value: 0 });
   });
 

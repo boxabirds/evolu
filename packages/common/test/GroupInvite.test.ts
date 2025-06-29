@@ -114,7 +114,7 @@ describe("GroupInvite", () => {
         nanoIdLib: testNanoIdLib,
         groupManager: deps.groupManager,
         currentUserId: "member-user",
-        activityLogger: deps.activityLogger,
+        ...(deps.activityLogger ? { activityLogger: deps.activityLogger } : {}),
       };
       const memberInviteManager = createGroupInviteManager(memberDeps);
 

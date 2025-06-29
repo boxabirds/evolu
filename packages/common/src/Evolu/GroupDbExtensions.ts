@@ -85,7 +85,7 @@ export const createGroupAwareStorage = <T extends object>(
     // These will be implemented in Phase 2
     getGroupId: () => ok(null),
     validateGroupAccess: () => ok(false),
-    getGroupEpoch: () => ok(0),
+    getGroupEpoch: () => ok(0 as import("../Type.js").NonNegativeInt),
   } as T & Partial<GroupStorage>;
 };
 

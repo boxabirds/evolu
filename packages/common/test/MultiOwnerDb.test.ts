@@ -33,7 +33,7 @@ describe("MultiOwnerDb", () => {
     
     expect(indexes).toHaveLength(3);
     
-    const indexSqls = indexes.map(idx => idx.sql);
+    const indexSqls = indexes.map(idx => idx);
     
     // Check primary owner index
     expect(indexSqls[0]).toContain('create index "idx_todo_owner"');

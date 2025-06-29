@@ -115,8 +115,8 @@ describe("GroupMessageFilter", () => {
       });
 
       const ranges: Range[] = [
-        { type: "Skip", upper: new Uint8Array() },
-        { type: "Fingerprint", upper: new Uint8Array(), fingerprint: new Uint8Array() },
+        { type: 0, upperBound: new Uint8Array() as any },
+        { type: 1, upperBound: new Uint8Array() as any, fingerprint: new Uint8Array(12) as import("../src/Evolu/Protocol.js").Fingerprint },
       ];
 
       const result = filterRangesByGroupAccess(
@@ -136,7 +136,7 @@ describe("GroupMessageFilter", () => {
       });
 
       const ranges: Range[] = [
-        { type: "Skip", upper: new Uint8Array() },
+        { type: 0, upperBound: new Uint8Array() as any },
       ];
 
       const result = filterRangesByGroupAccess(

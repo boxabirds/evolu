@@ -5,13 +5,17 @@ import { createIdFromString } from "../src/Type.js";
 
 describe("GroupSecurityContext", () => {
   const mockDeps = {
-    nanoid: (length?: number) => {
-      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-      let result = "";
-      for (let i = 0; i < (length || 21); i++) {
-        result += chars[Math.floor(Math.random() * chars.length)];
-      }
-      return result;
+    nanoIdLib: {
+      nanoid: (length?: number) => {
+        const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
+        for (let i = 0; i < (length || 21); i++) {
+          result += chars[Math.floor(Math.random() * chars.length)];
+        }
+        return result;
+      },
+      urlAlphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
+      customAlphabet: () => () => "custom-id",
     },
   };
 

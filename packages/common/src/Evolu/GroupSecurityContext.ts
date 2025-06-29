@@ -1,10 +1,7 @@
-import {
-  SecurityContext,
-  SecurityContextType,
-  SecurityMetadata,
-} from "./SecurityAbstractions.js";
+import type { SecurityContext } from "./SecurityAbstractions.js";
 import type { GroupId, GroupRole } from "./GroupTypes.js";
-import type { EvoluDeps } from "./EvoluDeps.js";
+import type { NodeId } from "./Timestamp.js";
+import type { NanoIdLibDep } from "../NanoId.js";
 
 /**
  * Security context for group operations.
@@ -14,9 +11,9 @@ import type { EvoluDeps } from "./EvoluDeps.js";
  * isolated and that group members can be identified by their NodeIds.
  */
 export class GroupSecurityContext implements SecurityContext {
-  readonly type: SecurityContextType = "group";
+  readonly type = "group" as const;
   readonly id: string;
-  readonly metadata: SecurityMetadata;
+  readonly metadata: Record<string, unknown>;
 
   constructor(
     private readonly group: {
@@ -26,7 +23,7 @@ export class GroupSecurityContext implements SecurityContext {
     },
     private readonly memberId: string,
     private readonly memberRole: GroupRole,
-    private readonly deps: Pick<EvoluDeps, "nanoid">
+    private readonly deps: NanoIdLibDep
   ) {
     // Context ID includes group ID and epoch for uniqueness
     this.id = `group:${group.id}:${group.currentEpoch}`;
@@ -53,7 +50,7 @@ export class GroupSecurityContext implements SecurityContext {
    * - Epoch is encoded to prevent cross-epoch conflicts
    * - Timestamp provides ordering information
    */
-  createNodeId(): string {
+  createNodeId(): NodeId {
     const timestamp = Date.now().toString(36);
     
     // Take last 6 chars of group ID for prefix
@@ -66,10 +63,10 @@ export class GroupSecurityContext implements SecurityContext {
     const memberPrefix = this.memberId.slice(0, 4);
     
     // Add random component for uniqueness
-    const random = this.deps.nanoid(6);
+    const random = this.deps.nanoIdLib.nanoid(6);
     
     // Combine all parts into a unique NodeId
-    return `g${groupPrefix}-e${epochStr}-m${memberPrefix}-${timestamp}-${random}`;
+    return `g${groupPrefix}-e${epochStr}-m${memberPrefix}-${timestamp}-${random}` as NodeId;
   }
 
   /**
@@ -169,7 +166,7 @@ export const createGroupSecurityContext = (
   },
   memberId: string,
   memberRole: GroupRole,
-  deps: Pick<EvoluDeps, "nanoid">
+  deps: NanoIdLibDep
 ): GroupSecurityContext => {
   return new GroupSecurityContext(group, memberId, memberRole, deps);
 };

@@ -22,18 +22,21 @@ export const createMultiOwnerTable = (
     }
   }
   
-  return `
-    create table ${sql.identifier(tableName).sql} (
+  const tableQuery = sql`
+    create table ${sql.identifier(tableName)} (
       "id" text primary key,
       "ownerId" blob not null,
-      ${allColumns
-        // "A column with affinity BLOB does not prefer one storage class over another
-        // and no attempt is made to coerce data from one storage class into another."
-        // https://www.sqlite.org/datatype3.html
-        .map((name) => `${sql.identifier(name).sql} blob`)
-        .join(", ")}
+      ${sql.raw(
+        allColumns
+          // "A column with affinity BLOB does not prefer one storage class over another
+          // and no attempt is made to coerce data from one storage class into another."
+          // https://www.sqlite.org/datatype3.html
+          .map((name) => `${sql.identifier(name).sql} blob`)
+          .join(", ")
+      )}
     );
-  ` as SafeSql;
+  `;
+  return tableQuery.sql;
 };
 
 /**
@@ -46,19 +49,19 @@ export const createMultiOwnerTableIndexes = (
   sql`
     create index ${sql.identifier(`idx_${tableName}_owner`)} 
     on ${sql.identifier(tableName)} ("ownerId");
-  ` as SafeSql,
+  `.sql,
   
   // Composite index for owner + common query patterns
   sql`
     create index ${sql.identifier(`idx_${tableName}_owner_updated`)} 
     on ${sql.identifier(tableName)} ("ownerId", "updatedAt" desc);
-  ` as SafeSql,
+  `.sql,
   
   // Index for soft deletes
   sql`
     create index ${sql.identifier(`idx_${tableName}_owner_deleted`)} 
     on ${sql.identifier(tableName)} ("ownerId", "isDeleted");
-  ` as SafeSql,
+  `.sql,
 ];
 
 /**

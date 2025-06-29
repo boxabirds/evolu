@@ -25,6 +25,8 @@ describe("GroupActivityLogger", () => {
       },
       nanoIdLib: {
         nanoid: vi.fn(() => "test-id-123"),
+        urlAlphabet: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
+        customAlphabet: vi.fn(() => vi.fn(() => "custom-id")),
       },
     };
   };
@@ -54,7 +56,7 @@ describe("GroupActivityLogger", () => {
       const result = logger.log(
         createTestGroupId(),
         createTestActorId(),
-        "group_create",
+        "group_created",
         createTestEpochNumber(),
         undefined,
         createActivityMetadata.groupCreated("Test Group")
@@ -75,7 +77,7 @@ describe("GroupActivityLogger", () => {
       const result = logger.log(
         createTestGroupId(),
         createTestActorId(),
-        "member_add",
+        "member_added",
         createTestEpochNumber(),
         "target-user-123" as typeof NonEmptyString.Type,
         createActivityMetadata.memberAdded("member")
@@ -88,14 +90,14 @@ describe("GroupActivityLogger", () => {
     test("handles database error", () => {
       const deps = createMockDeps();
       const mockError = { type: "SqliteError", code: "INSERT_FAILED" };
-      deps.sqlite.exec = vi.fn(() => err(mockError));
+      (deps.sqlite.exec as any) = vi.fn(() => err(mockError));
       
       const logger = createGroupActivityLogger(deps);
 
       const result = logger.log(
         createTestGroupId(),
         createTestActorId(),
-        "group_create",
+        "group_created",
         createTestEpochNumber()
       );
 
@@ -129,7 +131,7 @@ describe("GroupActivityLogger", () => {
         },
       ];
 
-      deps.sqlite.exec = vi.fn(() => ok({ rows: mockActivities }));
+      (deps.sqlite.exec as any) = vi.fn(() => ok({ rows: mockActivities }));
       const logger = createGroupActivityLogger(deps);
 
       const result = logger.getActivities(createTestGroupId(), 10, 0);
@@ -145,7 +147,7 @@ describe("GroupActivityLogger", () => {
 
     test("uses default limit and offset", () => {
       const deps = createMockDeps();
-      deps.sqlite.exec = vi.fn(() => ok({ rows: [] }));
+      (deps.sqlite.exec as any) = vi.fn(() => ok({ rows: [] }));
       const logger = createGroupActivityLogger(deps);
 
       logger.getActivities(createTestGroupId());
@@ -175,7 +177,7 @@ describe("GroupActivityLogger", () => {
         },
       ];
 
-      deps.sqlite.exec = vi.fn(() => ok({ rows: mockActivities }));
+      (deps.sqlite.exec as any) = vi.fn(() => ok({ rows: mockActivities }));
       const logger = createGroupActivityLogger(deps);
 
       const result = logger.getActivitiesByActor(createTestActorId());
@@ -204,7 +206,7 @@ describe("GroupActivityLogger", () => {
         },
       ];
 
-      deps.sqlite.exec = vi.fn(() => ok({ rows: mockActivities }));
+      (deps.sqlite.exec as any) = vi.fn(() => ok({ rows: mockActivities }));
       const logger = createGroupActivityLogger(deps);
 
       const result = logger.getActivitiesForTarget("target-123" as typeof NonEmptyString.Type);
@@ -220,7 +222,7 @@ describe("GroupActivityLogger", () => {
   describe("cleanup", () => {
     test("cleans up old activities", () => {
       const deps = createMockDeps();
-      deps.sqlite.exec = vi.fn(() => ok({ changes: 5 }));
+      (deps.sqlite.exec as any) = vi.fn(() => ok({ changes: 5 }));
       const logger = createGroupActivityLogger(deps);
 
       const result = logger.cleanup(30);
@@ -239,8 +241,8 @@ describe("GroupActivityLogger", () => {
     test("calculates correct cutoff date", () => {
       const deps = createMockDeps();
       const mockNow = new Date("2024-02-01T00:00:00.000Z").getTime();
-      deps.time.now = vi.fn(() => mockNow);
-      deps.sqlite.exec = vi.fn(() => ok({ changes: 0 }));
+      (deps.time.now as any) = vi.fn(() => mockNow);
+      (deps.sqlite.exec as any) = vi.fn(() => ok({ changes: 0 }));
       
       const logger = createGroupActivityLogger(deps);
       logger.cleanup(7); // 7 days

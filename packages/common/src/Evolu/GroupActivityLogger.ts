@@ -178,7 +178,7 @@ export const createGroupActivityLogger = (
           id: row.id,
           groupId: row.groupId as GroupId,
           actorId: row.actorId as NonEmptyString,
-          action: row.action as GroupOperationType,
+          action: row.action as GroupActivityAction,
           epochNumber: row.epochNumber as NonNegativeInt,
           timestamp: row.timestamp,
         };
@@ -217,7 +217,7 @@ export const createGroupActivityLogger = (
           id: row.id,
           groupId: row.groupId as GroupId,
           actorId: row.actorId as NonEmptyString,
-          action: row.action as GroupOperationType,
+          action: row.action as GroupActivityAction,
           epochNumber: row.epochNumber as NonNegativeInt,
           timestamp: row.timestamp,
         };
@@ -256,7 +256,7 @@ export const createGroupActivityLogger = (
           id: row.id,
           groupId: row.groupId as GroupId,
           actorId: row.actorId as NonEmptyString,
-          action: row.action as GroupOperationType,
+          action: row.action as GroupActivityAction,
           epochNumber: row.epochNumber as NonNegativeInt,
           timestamp: row.timestamp,
         };

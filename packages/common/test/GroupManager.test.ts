@@ -393,7 +393,7 @@ describe("GroupManager", () => {
     // Mock nanoid to return the same ID
     const originalNanoid = deps.nanoIdLib.nanoid;
     let callCount = 0;
-    deps.nanoIdLib.nanoid = () => {
+    (deps.nanoIdLib as any).nanoid = () => {
       if (callCount++ === 0) return groupId; // First call returns duplicate
       return originalNanoid();
     };

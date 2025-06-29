@@ -15,21 +15,23 @@ describe("GroupAuthProvider", () => {
       ok: true, 
       value: ciphertext 
     }),
-    nonceLength: 12,
+    nonceLength: 12 as import("../src/Type.js").NonNegativeInt,
   };
 
   const createTestMember = (
     userId: string,
     role: "admin" | "member"
-  ): GroupMember => ({
-    id: createIdFromString<"Member">(`member-${userId}`) as MemberId,
-    userId,
-    groupId: createIdFromString<"Group">("test-group") as GroupId,
-    role,
-    publicKey: btoa(String.fromCharCode(...new Uint8Array(32).fill(1))),
-    joinedAt: new Date("2024-01-01"),
-    leftAt: undefined,
-  });
+  ): GroupMember => {
+    const member: GroupMember = {
+      id: createIdFromString<"Member">(`member-${userId}`) as MemberId,
+      userId,
+      groupId: createIdFromString<"Group">("test-group") as GroupId,
+      role,
+      publicKey: btoa(String.fromCharCode(...new Uint8Array(32).fill(1))),
+      joinedAt: new Date("2024-01-01"),
+    };
+    return member;
+  };
 
   const createTestProvider = (
     currentUserId: string = "user1",

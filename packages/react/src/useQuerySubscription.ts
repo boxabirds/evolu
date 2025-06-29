@@ -1,5 +1,4 @@
-import { constVoid } from "@evolu/common";
-import { Query, QueryRows, Row, emptyRows } from "@evolu/common/evolu";
+import { constVoid, Query, QueryRows, Row, emptyRows } from "@evolu/common";
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useEvolu } from "./useEvolu.js";
 

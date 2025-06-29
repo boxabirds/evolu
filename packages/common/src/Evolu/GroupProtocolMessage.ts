@@ -10,10 +10,9 @@ import type {
   Base64Url256,
   BinaryOwnerId,
   EncryptedCrdtMessage,
-  NonNegativeInt,
 } from "./Protocol.js";
 import type { GroupId } from "./GroupTypes.js";
-import type { NonEmptyString } from "../Type.js";
+import type { NonEmptyString, NonNegativeInt } from "../Type.js";
 
 /**
  * Group operation types for protocol messages.
@@ -43,41 +42,20 @@ export interface GroupOperationMetadata {
 }
 
 /**
- * Extended protocol message that includes group-specific fields.
+ * Group protocol message is just a regular protocol message.
+ * Group metadata is embedded within the binary data.
  */
-export interface GroupProtocolMessage extends ProtocolMessage {
-  /**
-   * The group ID this message belongs to, if any.
-   * Used for partitioning messages by group.
-   */
-  readonly groupId?: GroupId;
-  
-  /**
-   * The epoch number when this message was created.
-   * Used for epoch-based key management.
-   */
-  readonly epochNumber?: NonNegativeInt;
-  
-  /**
-   * Group operation metadata.
-   * Describes the group operation being performed.
-   */
-  readonly groupOperation?: GroupOperationMetadata;
-  
-  /**
-   * Group-specific metadata encoded as base64url.
-   * Can include member information, permissions, etc.
-   */
-  readonly groupMetadata?: Base64Url256;
-}
+export type GroupProtocolMessage = ProtocolMessage;
 
 /**
  * Type guard to check if a protocol message is a group message.
+ * For now, all messages are treated as potential group messages.
  */
 export const isGroupProtocolMessage = (
   message: ProtocolMessage
 ): message is GroupProtocolMessage => {
-  return 'groupId' in message && message.groupId !== undefined;
+  // In Phase 2, this will parse the binary data to check for group metadata
+  return true;
 };
 
 /**
@@ -90,13 +68,9 @@ export const createGroupProtocolMessage = (
   groupOperation?: GroupOperationMetadata,
   groupMetadata?: Base64Url256
 ): GroupProtocolMessage => {
-  return {
-    ...message,
-    groupId,
-    epochNumber,
-    groupOperation,
-    groupMetadata,
-  };
+  // TODO: Phase 2 - encode group metadata into the binary message
+  // For now, just return the original message
+  return message;
 };
 
 /**
@@ -151,13 +125,7 @@ export interface GroupContext {
 export const extractGroupContext = (
   message: ProtocolMessage | GroupProtocolMessage
 ): GroupContext | null => {
-  if (!isGroupProtocolMessage(message) || !message.groupId) {
-    return null;
-  }
-  
-  return {
-    groupId: message.groupId,
-    epochNumber: message.epochNumber || 0,
-    operation: message.groupOperation?.operation,
-  };
+  // In Phase 2, this will parse the binary data to extract group metadata
+  // For now, return null (no group context)
+  return null;
 };

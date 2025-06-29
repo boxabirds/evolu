@@ -1,17 +1,20 @@
 /**
- * Protocol handler extensions for group functionality.
+ * Protocol handler for group-aware messages.
  * 
- * Provides group-aware message processing, validation, and routing
- * while maintaining backward compatibility with the base protocol.
+ * Extends the standard protocol handlers to support group operations
+ * and group-based message routing.
  */
 
 import type { 
+  ApplyProtocolMessageAsClientOptions, 
+  ApplyProtocolMessageAsRelayOptions,
   ProtocolMessage,
-  Storage,
   BinaryOwnerId,
   EncryptedCrdtMessage,
   ProtocolError,
+  ProtocolInvalidDataError,
   ProtocolWriteKeyError,
+  StorageDep,
   createProtocolMessageForSync,
   applyProtocolMessageAsClient,
   applyProtocolMessageAsRelay,
@@ -30,30 +33,25 @@ import type { GroupId } from "./GroupTypes.js";
 import type { NonNegativeInt, NonEmptyString } from "../Type.js";
 
 /**
- * Extended storage interface for group-aware operations.
+ * Group-aware storage operations.
  */
-export interface GroupStorage extends Storage {
+export interface GroupStorage {
   /**
-   * Get the group ID associated with an owner ID, if any.
-   */
-  readonly getGroupId: (ownerId: BinaryOwnerId) => Result<GroupId | null, SqliteError>;
-  
-  /**
-   * Validate that the owner has access to the specified group.
+   * Validates whether an owner has access to a group.
    */
   readonly validateGroupAccess: (
-    ownerId: BinaryOwnerId, 
+    ownerId: BinaryOwnerId,
     groupId: GroupId,
     epochNumber: NonNegativeInt
   ) => Result<boolean, SqliteError>;
   
   /**
-   * Get the current epoch number for a group.
+   * Gets the current epoch for a group.
    */
   readonly getGroupEpoch: (groupId: GroupId) => Result<NonNegativeInt, SqliteError>;
   
   /**
-   * Validate a group operation.
+   * Validates whether a group operation is allowed.
    */
   readonly validateGroupOperation: (
     ownerId: BinaryOwnerId,
@@ -63,9 +61,9 @@ export interface GroupStorage extends Storage {
   ) => Result<boolean, SqliteError>;
   
   /**
-   * Record a group operation in the activity log.
+   * Records a group operation in the audit log.
    */
-  readonly recordGroupActivity: (
+  readonly recordGroupOperation: (
     groupId: GroupId,
     actorId: NonEmptyString,
     operation: GroupOperationType,
@@ -91,171 +89,25 @@ const validateGroupMessage = (
   message: GroupProtocolMessage,
   storage: GroupStorage
 ): Result<void, GroupProtocolError | SqliteError> => {
-  const context = extractGroupContext(message);
-  if (!context) return ok();
-  
-  // Validate group access
-  const accessResult = storage.validateGroupAccess(
-    message.ownerId,
-    context.groupId,
-    context.epochNumber
-  );
-  
-  if (!accessResult.ok) return accessResult;
-  
-  if (!accessResult.value) {
-    return err<GroupProtocolError>({
-      type: "GroupProtocolError",
-      groupId: context.groupId,
-      reason: "access_denied",
-    });
-  }
-  
-  // Validate epoch
-  const epochResult = storage.getGroupEpoch(context.groupId);
-  if (!epochResult.ok) return epochResult;
-  
-  if (context.epochNumber > epochResult.value) {
-    return err<GroupProtocolError>({
-      type: "GroupProtocolError",
-      groupId: context.groupId,
-      reason: "invalid_epoch",
-    });
-  }
-  
-  // Validate operation if present
-  if (message.groupOperation) {
-    const op = message.groupOperation;
-    const opResult = storage.validateGroupOperation(
-      message.ownerId,
-      op.operation,
-      op.groupId,
-      op.targetId
-    );
-    
-    if (!opResult.ok) return opResult;
-    
-    if (!opResult.value) {
-      return err<GroupProtocolError>({
-        type: "GroupProtocolError",
-        groupId: context.groupId,
-        reason: "operation_not_allowed",
-      });
-    }
-  }
-  
+  // TODO: Phase 2 - implement group message validation
+  // This will require parsing the binary protocol message to extract:
+  // - Owner ID
+  // - Group context (groupId, epochNumber)
+  // - Group operations
+  // For now, all messages pass validation
   return ok();
 };
 
 /**
- * Processes group operations from a protocol message.
+ * Processes group operations in a protocol message.
  */
 const processGroupOperations = (
   message: GroupProtocolMessage,
   storage: GroupStorage
 ): Result<void, SqliteError> => {
-  if (!message.groupOperation) return ok();
-  
-  const op = message.groupOperation;
-  return storage.recordGroupActivity(
-    op.groupId,
-    op.actorId,
-    op.operation,
-    op.epochNumber,
-    op.targetId,
-    op.data
-  );
-};
-
-/**
- * Creates a group-aware client message handler.
- */
-export const createGroupClientHandler = (
-  originalHandler: ReturnType<typeof applyProtocolMessageAsClient>,
-  storage: GroupStorage
-): ReturnType<typeof applyProtocolMessageAsClient> => {
-  return (protocolMessage, clientStorage) => {
-    // Validate group access if it's a group message
-    if (isGroupProtocolMessage(protocolMessage)) {
-      const validationResult = validateGroupMessage(protocolMessage, storage);
-      if (!validationResult.ok) {
-        return err(validationResult.error);
-      }
-      
-      // Process group operations
-      const opsResult = processGroupOperations(protocolMessage, storage);
-      if (!opsResult.ok) {
-        return err(opsResult.error);
-      }
-    }
-    
-    // Call original handler
-    return originalHandler(protocolMessage, clientStorage);
-  };
-};
-
-/**
- * Creates a group-aware relay message handler.
- */
-export const createGroupRelayHandler = (
-  originalHandler: ReturnType<typeof applyProtocolMessageAsRelay>,
-  storage: GroupStorage
-): ReturnType<typeof applyProtocolMessageAsRelay> => {
-  return (protocolMessage, relayStorage) => {
-    // Validate group access if it's a group message
-    if (isGroupProtocolMessage(protocolMessage)) {
-      const validationResult = validateGroupMessage(protocolMessage, storage);
-      if (!validationResult.ok) {
-        return err(validationResult.error);
-      }
-      
-      // Process group operations
-      const opsResult = processGroupOperations(protocolMessage, storage);
-      if (!opsResult.ok) {
-        return err(opsResult.error);
-      }
-    }
-    
-    // Call original handler
-    return originalHandler(protocolMessage, relayStorage);
-  };
-};
-
-/**
- * Creates a group-aware sync message creator.
- */
-export const createGroupSyncHandler = (
-  originalHandler: ReturnType<typeof createProtocolMessageForSync>,
-  storage: GroupStorage
-): ReturnType<typeof createProtocolMessageForSync> => {
-  return (ownerId, ranges, options) => {
-    // Get group context for the owner
-    const groupIdResult = storage.getGroupId(ownerId);
-    if (!groupIdResult.ok) return groupIdResult;
-    
-    const groupId = groupIdResult.value;
-    if (!groupId) {
-      // Not a group owner, use original handler
-      return originalHandler(ownerId, ranges, options);
-    }
-    
-    // Get current epoch
-    const epochResult = storage.getGroupEpoch(groupId);
-    if (!epochResult.ok) return epochResult;
-    
-    // Create sync message with original handler
-    const result = originalHandler(ownerId, ranges, options);
-    if (!result.ok) return result;
-    
-    // Enhance with group context
-    const enhancedMessage: GroupProtocolMessage = {
-      ...result.value,
-      groupId,
-      epochNumber: epochResult.value,
-    };
-    
-    return ok(enhancedMessage);
-  };
+  // TODO: Phase 2 - implement group operation processing
+  // This will parse the binary message and record operations
+  return ok();
 };
 
 /**
@@ -280,9 +132,64 @@ export const filterGroupMessages = (
   groupId: GroupId,
   epochNumber?: NonNegativeInt
 ): readonly EncryptedCrdtMessage[] => {
-  // In Phase 2, we'll implement actual filtering based on message metadata
-  // For now, return all messages
-  return messages;
+  return filterMessagesByGroup(messages, groupId);
+};
+
+/**
+ * Creates group-aware applyProtocolMessageAsClient.
+ */
+export const createGroupApplyProtocolMessageAsClient = (
+  baseApplyFactory: typeof applyProtocolMessageAsClient,
+  storage: GroupStorage
+) => (deps: StorageDep) => {
+  const baseApply = baseApplyFactory(deps);
+  return (
+    protocolMessage: Uint8Array,
+    clientStorage?: ApplyProtocolMessageAsClientOptions
+  ): Result<ProtocolMessage | null, ProtocolError> => {
+    // Validate group access
+    const validation = validateGroupMessage(protocolMessage as GroupProtocolMessage, storage);
+    if (!validation.ok) {
+      // Convert group errors to protocol errors
+      return err<ProtocolError>({
+        type: "ProtocolInvalidDataError",
+        data: protocolMessage,
+        error: validation.error,
+      });
+    }
+    
+    // Apply base protocol
+    return baseApply(protocolMessage, clientStorage);
+  };
+};
+
+/**
+ * Creates group-aware applyProtocolMessageAsRelay.
+ */
+export const createGroupApplyProtocolMessageAsRelay = (
+  baseApplyFactory: typeof applyProtocolMessageAsRelay,
+  storage: GroupStorage
+) => (deps: StorageDep) => {
+  const baseApply = baseApplyFactory(deps);
+  return (
+    protocolMessage: Uint8Array,
+    relayStorage?: ApplyProtocolMessageAsRelayOptions,
+    version?: NonNegativeInt
+  ): Result<ProtocolMessage | null, ProtocolInvalidDataError> => {
+    // Validate group access
+    const validation = validateGroupMessage(protocolMessage as GroupProtocolMessage, storage);
+    if (!validation.ok) {
+      // Convert group errors to protocol errors
+      return err<ProtocolInvalidDataError>({
+        type: "ProtocolInvalidDataError",
+        data: protocolMessage,
+        error: validation.error,
+      });
+    }
+    
+    // Apply base protocol
+    return baseApply(protocolMessage, relayStorage, version);
+  };
 };
 
 /**

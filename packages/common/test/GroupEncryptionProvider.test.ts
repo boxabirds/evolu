@@ -14,7 +14,7 @@ describe("GroupEncryptionProvider", () => {
   const createTestContext = (id: string = "test-context"): SecurityContext => ({
     id,
     type: "group",
-    createNodeId: () => "test-node-id",
+    createNodeId: () => "test-node-id" as import("../src/Evolu/Timestamp.js").NodeId,
     getPartitionKey: () => "test-partition",
     metadata: { test: true },
   });

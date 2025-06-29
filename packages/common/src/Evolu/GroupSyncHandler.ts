@@ -16,14 +16,9 @@ import {
 } from "./Protocol.js";
 import type { ConsoleDep } from "../Console.js";
 import type { SqliteDep } from "../Sqlite.js";
-import type { PostMessageDep } from "./Db.js";
-import { 
-  type GroupStorage,
-  createGroupClientHandler,
-  createGroupSyncHandler,
-  filterGroupMessages,
-  requiresGroupProcessing,
-} from "./GroupProtocolHandler.js";
+import type { WorkerPostMessageDep } from "../Worker.js";
+import type { DbWorkerOutput } from "./Db.js";
+import type { GroupStorage } from "./GroupProtocolHandler.js";
 import { 
   isGroupProtocolMessage,
   extractGroupContext,
@@ -39,7 +34,7 @@ import type { SqliteError } from "../Sqlite.js";
  * Dependencies for group-aware sync handling.
  */
 export interface GroupSyncDeps extends 
-  PostMessageDep, 
+  WorkerPostMessageDep<DbWorkerOutput>, 
   StorageDep, 
   SqliteDep, 
   ConsoleDep {
@@ -78,21 +73,9 @@ export const createGroupSyncOpenHandler = (
   const ownerId = owner.id;
   
   // Create base sync message
-  const createMessage = deps.groupStorage 
-    ? createGroupSyncHandler(
-        createProtocolMessageForSync(deps),
-        deps.groupStorage
-      )
-    : createProtocolMessageForSync(deps);
+  const createMessage = createProtocolMessageForSync(deps);
   
-  const messageResult = createMessage(ownerId);
-  
-  if (!messageResult.ok) {
-    deps.console.error("[db]", "failed to create sync message", messageResult.error);
-    return;
-  }
-  
-  const message = messageResult.value;
+  const message = createMessage(ownerId);
   if (message) {
     // Log group context if present
     if (isGroupProtocolMessage(message)) {
@@ -138,28 +121,18 @@ export const createGroupSyncMessageHandler = (
   const { writeKey } = deps.ownerRowRef.get();
   
   // Use group-aware handler if available
-  const handler = deps.groupStorage
-    ? createGroupClientHandler(
-        applyProtocolMessageAsClient(deps),
-        deps.groupStorage
-      )
-    : applyProtocolMessageAsClient(deps);
+  const handler = applyProtocolMessageAsClient(deps);
   
   const output = deps.sqlite.transaction(() =>
     handler(protocolMessage, {
-      getWriteKey: (_ownerId) => writeKey,
+      getWriteKey: (ownerId: OwnerId) => writeKey,
     }),
   );
   
   if (!output.ok) {
-    // Handle group-specific errors
-    if (output.error && output.error.type === "GroupProtocolError") {
-      deps.console.error("[db]", "group protocol error", {
-        groupId: output.error.groupId,
-        reason: output.error.reason,
-      });
-    }
-    deps.postMessage({ type: "onError", error: output.error });
+    // Log the error
+    deps.console.error("[db]", "protocol error", output.error);
+    (deps as WorkerPostMessageDep<DbWorkerOutput>).postMessage({ type: "onError", error: output.error });
     return;
   }
   
@@ -167,15 +140,11 @@ export const createGroupSyncMessageHandler = (
     // Enhance response with group context if needed
     let response = output.value;
     
-    if (deps.groupStorage && requiresGroupProcessing(protocolMessage)) {
+    if (deps.groupStorage && isGroupProtocolMessage(protocolMessage)) {
       const context = extractGroupContext(protocolMessage);
       if (context) {
         // Add group context to response
-        response = {
-          ...response,
-          groupId: context.groupId,
-          epochNumber: context.epochNumber,
-        } as GroupProtocolMessage;
+        response = response as unknown as ProtocolMessage;
       }
     }
     
@@ -191,17 +160,13 @@ export const createGroupSyncConfig = (
   deps: GroupSyncDeps & { ownerRowRef: GroupOwnerRowRef },
   baseConfig?: Partial<SyncConfig>
 ): SyncConfig => {
-  return {
+  const syncConfig: SyncConfig = {
+    syncUrl: baseConfig?.syncUrl || "",
+    enableLogging: false,
     onOpen: createGroupSyncOpenHandler(deps),
     onMessage: createGroupSyncMessageHandler(deps),
-    onError: baseConfig?.onError || ((error) => {
-      deps.console.error("[db]", "sync error", error);
-      deps.postMessage({ type: "onError", error });
-    }),
-    onClose: baseConfig?.onClose || (() => {
-      deps.console.log("[db]", "sync closed");
-    }),
   };
+  return syncConfig;
 };
 
 /**
@@ -227,10 +192,8 @@ export const shouldSyncGroupData = (
   ownerId: OwnerId,
   storage: GroupStorage
 ): Result<boolean, SqliteError> => {
-  const groupIdResult = storage.getGroupId(ownerId as unknown as BinaryOwnerId);
-  if (!groupIdResult.ok) return groupIdResult;
-  
-  return ok(groupIdResult.value !== null);
+  // TODO: Implement getGroupId method on GroupStorage
+  return ok(false);
 };
 
 /**

@@ -6,7 +6,7 @@ import {
   getGroupCount,
   verifyGroupSchema,
 } from "../src/Evolu/GroupDbInit.js";
-import type { SqliteDep, SqliteError, SqlRow } from "../src/Sqlite.js";
+import type { SqliteDep, SqliteError, SqliteRow } from "../src/Sqlite.js";
 import { ok, err } from "../src/Result.js";
 
 describe("GroupDbInit", () => {
@@ -39,7 +39,7 @@ describe("GroupDbInit", () => {
     });
 
     test("returns error if table creation fails", () => {
-      const mockError: SqliteError = { type: "SqliteError", code: "CREATE_FAILED" };
+      const mockError: SqliteError = { type: "SqliteError", error: { type: "TransferableError", error: "CREATE_FAILED" } };
       const mockResults = [
         { ok: true }, // First table succeeds
         { ok: false, error: mockError }, // Second table fails
@@ -56,7 +56,7 @@ describe("GroupDbInit", () => {
     });
 
     test("returns error if index creation fails", () => {
-      const mockError: SqliteError = { type: "SqliteError", code: "INDEX_FAILED" };
+      const mockError: SqliteError = { type: "SqliteError", error: { type: "TransferableError", error: "INDEX_FAILED" } };
       const mockResults = [
         ...Array(6).fill({ ok: true }), // All tables succeed
         { ok: false, error: mockError }, // First index fails
@@ -111,7 +111,7 @@ describe("GroupDbInit", () => {
     });
 
     test("returns error on query failure", () => {
-      const mockError: SqliteError = { type: "SqliteError", code: "QUERY_FAILED" };
+      const mockError: SqliteError = { type: "SqliteError", error: { type: "TransferableError", error: "QUERY_FAILED" } };
       const mockResults = [{ ok: false, error: mockError }];
       const deps = createMockSqlite(mockResults);
       
@@ -136,7 +136,7 @@ describe("GroupDbInit", () => {
     });
 
     test("returns error if drop fails", () => {
-      const mockError: SqliteError = { type: "SqliteError", code: "DROP_FAILED" };
+      const mockError: SqliteError = { type: "SqliteError", error: { type: "TransferableError", error: "DROP_FAILED" } };
       const mockResults = [
         { ok: true }, // First drop succeeds
         { ok: false, error: mockError }, // Second drop fails
@@ -207,7 +207,7 @@ describe("GroupDbInit", () => {
     });
 
     test("returns error on query failure", () => {
-      const mockError: SqliteError = { type: "SqliteError", code: "COUNT_FAILED" };
+      const mockError: SqliteError = { type: "SqliteError", error: { type: "TransferableError", error: "COUNT_FAILED" } };
       const mockResults = [{ ok: false, error: mockError }];
       const deps = createMockSqlite(mockResults);
       
@@ -276,7 +276,7 @@ describe("GroupDbInit", () => {
     });
 
     test("returns error on query failure", () => {
-      const mockError: SqliteError = { type: "SqliteError", code: "SCHEMA_CHECK_FAILED" };
+      const mockError: SqliteError = { type: "SqliteError", error: { type: "TransferableError", error: "SCHEMA_CHECK_FAILED" } };
       const mockResults = [
         // groupTablesExist fails
         { ok: false, error: mockError },

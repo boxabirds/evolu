@@ -52,8 +52,8 @@ export type InviteError =
   | { readonly type: "InvalidInviteFormat" }
   | { readonly type: "InviteExpired" }
   | { readonly type: "InviteAlreadyUsed" }
-  | { readonly type: "GroupNotFound" }
-  | { readonly type: "InsufficientPermissions" };
+  | { readonly type: "InviteRevoked" }
+  | { readonly type: "MaxUsesReached" };
 
 /**
  * Dependencies for GroupInvite.
@@ -165,7 +165,7 @@ export const createGroupInviteManager = (
 
   return {
     generateInvite: (groupId, role, expiresInHours = 24, maxUses) => {
-      return deps.sqlite.transaction(() => {
+      return deps.sqlite.transaction<GroupInvite, SqliteError | GroupError | InviteError>(() => {
         // Verify group exists and user has permission
         const groupResult = deps.groupManager.get(groupId);
         if (!groupResult.ok) return groupResult;
@@ -179,7 +179,10 @@ export const createGroupInviteManager = (
         );
 
         if (!currentUserMember || currentUserMember.role !== "admin") {
-          return err({ type: "InsufficientPermissions" } as InviteError);
+          return err<GroupError>({ 
+            type: "InsufficientPermissions", 
+            required: "admin" as GroupRole 
+          });
         }
 
         const now = new Date(deps.time.now());
@@ -261,7 +264,7 @@ export const createGroupInviteManager = (
       if (invite.isRevoked) {
         return {
           valid: false,
-          reason: "InviteAlreadyUsed",
+          reason: "InviteRevoked",
         };
       }
 
@@ -278,7 +281,7 @@ export const createGroupInviteManager = (
       if (invite.maxUses && invite.usedCount >= invite.maxUses) {
         return {
           valid: false,
-          reason: "InviteAlreadyUsed",
+          reason: "MaxUsesReached",
         };
       }
 
@@ -290,7 +293,7 @@ export const createGroupInviteManager = (
     },
 
     acceptInvite: (inviteCode, userId, publicKey) => {
-      return deps.sqlite.transaction(() => {
+      return deps.sqlite.transaction<void, SqliteError | GroupError | InviteError>(() => {
         // Validate invite first
         const validation = deps.sqlite.exec<{
           id: string;
@@ -313,7 +316,7 @@ export const createGroupInviteManager = (
         const invite = validation.value.rows[0];
         
         if (invite.isRevoked) {
-          return err({ type: "InviteAlreadyUsed" } as InviteError);
+          return err({ type: "InviteRevoked" } as InviteError);
         }
 
         const now = deps.time.now();
@@ -324,7 +327,7 @@ export const createGroupInviteManager = (
         }
 
         if (invite.maxUses && invite.usedCount >= invite.maxUses) {
-          return err({ type: "InviteAlreadyUsed" } as InviteError);
+          return err({ type: "MaxUsesReached" } as InviteError);
         }
         
         // Add member to group (use internal to avoid nested transaction)
@@ -359,7 +362,7 @@ export const createGroupInviteManager = (
     },
     
     revokeInvite: (inviteCode, reason) => {
-      return deps.sqlite.transaction(() => {
+      return deps.sqlite.transaction<void, SqliteError | GroupError | InviteError>(() => {
         // Get invite details
         const inviteResult = deps.sqlite.exec<{
           id: string;
@@ -397,7 +400,7 @@ export const createGroupInviteManager = (
           (currentUserMember.role === "admin" || invite.createdBy === deps.currentUserId);
         
         if (!canRevoke) {
-          return err({ type: "InsufficientPermissions" } as InviteError);
+          return err({ type: "InsufficientPermissions", required: "admin" as GroupRole });
         }
         
         // Revoke invite
@@ -435,7 +438,7 @@ export const createGroupInviteManager = (
       );
       
       if (!currentUserMember || currentUserMember.role !== "admin") {
-        return err({ type: "InsufficientPermissions" } as InviteError);
+        return err({ type: "InsufficientPermissions", required: "admin" as GroupRole });
       }
       
       const result = deps.sqlite.exec<{
@@ -472,10 +475,10 @@ export const createGroupInviteManager = (
           expiresAt: row.expiresAt,
           usedCount: row.usedCount,
           isRevoked: Boolean(row.isRevoked),
+          ...(row.maxUses !== null && { maxUses: row.maxUses }),
+          ...(row.revokedAt !== null && { revokedAt: row.revokedAt }),
+          ...(row.revokedBy !== null && { revokedBy: row.revokedBy }),
         };
-        if (row.maxUses !== null) invite.maxUses = row.maxUses;
-        if (row.revokedAt !== null) invite.revokedAt = row.revokedAt;
-        if (row.revokedBy !== null) invite.revokedBy = row.revokedBy;
         return invite;
       });
       

@@ -1,4 +1,5 @@
 import { expect, test, describe } from "vitest";
+import type { DateIsoString } from "../src/Type.js";
 import {
   // Group types
   type Group,
@@ -110,9 +111,8 @@ describe("Group TypeScript Exports", () => {
       id: "group-1" as GroupId,
       name: "Test Group",
       currentEpoch: 1,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
       createdBy: "user-1",
-      metadata: null,
     };
     
     const member: GroupMember = {
@@ -120,17 +120,20 @@ describe("Group TypeScript Exports", () => {
       userId: "user-1",
       role: "admin" as GroupRole,
       publicKey: "key",
-      joinedAt: new Date().toISOString(),
+      joinedAt: new Date().toISOString() as DateIsoString,
     };
     
     const invite: GroupInvite = {
+      id: "invite-id-1",
+      inviteCode: "invite-123",
       groupId: "group-1" as GroupId,
       role: "member" as GroupRole,
-      createdAt: new Date().toISOString(),
       expiresAt: new Date().toISOString(),
-      inviteCode: "invite-123",
-      createdBy: "user-1",
       maxUses: 10,
+      usedCount: 0,
+      createdBy: "user-1",
+      createdAt: new Date().toISOString(),
+      isRevoked: false,
     };
     
     expect(group).toBeDefined();

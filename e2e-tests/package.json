@@ -9,7 +9,13 @@
     "test:debug": "playwright test --debug",
     "test:react": "playwright test --project=react-groups",
     "test:svelte": "playwright test --project=svelte-groups",
-    "show-report": "playwright show-report"
+    "test:multibrowser": "playwright test --config=multibrowser-playwright.config.ts",
+    "test:multibrowser:ui": "playwright test --config=multibrowser-playwright.config.ts --ui",
+    "test:multibrowser:debug": "playwright test --config=multibrowser-playwright.config.ts --debug",
+    "test:multibrowser:react": "playwright test --config=multibrowser-playwright.config.ts --project=react-multibrowser",
+    "test:multibrowser:svelte": "playwright test --config=multibrowser-playwright.config.ts --project=svelte-multibrowser",
+    "show-report": "playwright show-report",
+    "show-multibrowser-report": "playwright show-report multibrowser-report"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

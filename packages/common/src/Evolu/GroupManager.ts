@@ -247,8 +247,8 @@ export const createGroupManager = (
         role: row.role as GroupRole,
         publicKey: row.publicKey,
         joinedAt: row.joinedAt as DateIsoString,
+        ...(row.leftAt && { leftAt: row.leftAt as DateIsoString }),
       };
-      if (row.leftAt) member.leftAt = row.leftAt as DateIsoString;
       return member;
     });
 
@@ -435,7 +435,7 @@ export const createGroupManager = (
           userId: deps.currentUserId,
           role: "admin" as GroupRole,
           publicKey: "placeholder-public-key",
-          joinedAt: new Date(now),
+          joinedAt: now,
         };
 
         return ok(createGroupWithMembers(group, [member]));
@@ -571,7 +571,7 @@ export const createGroupManager = (
     },
 
     leave: (groupId) => {
-      return deps.sqlite.transaction(() => {
+      return deps.sqlite.transaction<void, SqliteError | GroupError>(() => {
         // Check if last admin
         const adminCount = deps.sqlite.exec<{ count: number }>(sql`
           select count(*) as count

@@ -130,10 +130,12 @@ export const createGroupAwareEvolu = <S extends EvoluSchema>(
     upsert: wrapMutation(evolu.upsert),
 
     createGroup: async (name: string) => {
-      if (!groupManager) {
-        return err({ type: "GroupNotFound", groupId: "" as GroupId });
-      }
-      return groupManager.create(name);
+      // For now, return a not implemented error
+      // TODO: Implement group operations through worker messages
+      return err<GroupError>({ 
+        type: "GroupNotFound", 
+        groupId: "not-implemented" as GroupId 
+      });
     },
 
     joinGroup: async (inviteCode: string) => {

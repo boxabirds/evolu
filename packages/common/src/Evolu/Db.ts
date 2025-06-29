@@ -344,12 +344,18 @@ export const createDbWorkerForPlatform = (
             maybeMigrateToVersion0Result.value.messages,
             maybeMigrateToVersion0Result.value.lastTimestamp,
           );
-          if (!result.ok) return result;
+          if (!result.ok) {
+            // Convert to TransferableError for transaction compatibility
+            return err(createTransferableError(result.error));
+          }
         }
 
         if (!ownerExists && isNonEmptyReadonlyArray(initMessage.initialData)) {
           const result = applyChanges(depsWithoutSync)(initMessage.initialData);
-          if (!result.ok) return result;
+          if (!result.ok) {
+            // Convert to TransferableError for transaction compatibility
+            return err(createTransferableError(result.error));
+          }
         }
 
         postMessage({ type: "onInit", owner: appOwner });
@@ -393,13 +399,16 @@ export const createDbWorkerForPlatform = (
                   delete from ${sql.identifier(change.table)}
                   where id = ${change.id};
                 `);
-                if (!result.ok) return result;
+                if (!result.ok) {
+            // Convert to TransferableError for transaction compatibility
+            return err(createTransferableError(result.error));
+          }
               } else {
                 const millis = Millis.from(deps.time.now());
                 if (!millis.ok) {
-                  return err<TimestampTimeOutOfRangeError>({
+                  return err(createTransferableError({
                     type: "TimestampTimeOutOfRangeError",
-                  });
+                  }));
                 }
                 const date = new Date(millis.value).toISOString();
                 for (const [column, value] of objectToEntries(change.values)) {
@@ -412,7 +421,10 @@ export const createDbWorkerForPlatform = (
                         ${sql.identifier(column)} = ${value},
                         updatedAt = ${date};
                   `);
-                  if (!result.ok) return result;
+                  if (!result.ok) {
+            // Convert to TransferableError for transaction compatibility
+            return err(createTransferableError(result.error));
+          }
                 }
               }
             }
@@ -451,7 +463,9 @@ export const createDbWorkerForPlatform = (
             }
 
             const messages = applyChanges(deps)(toSyncChanges, onChange);
-            if (!messages.ok) return messages;
+            if (!messages.ok) {
+              return err(createTransferableError(messages.error));
+            }
 
             const owner = deps.ownerRowRef.get();
             // TODO: Check owner whether it's allowed to write, return an

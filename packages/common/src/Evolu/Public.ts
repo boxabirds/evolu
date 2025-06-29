@@ -16,6 +16,7 @@ export { binaryIdToId, idToBinaryId } from "./Protocol.js";
 export type { BinaryId } from "./Protocol.js";
 export * as kysely from "./PublicKysely.js";
 export type { InferRow, Query, QueryRows, Row } from "./Query.js";
+export { emptyRows } from "./Query.js";
 export { formatValidMutationSizeError } from "./Schema.js";
 export type { EvoluSchema, ValidMutationSizeError } from "./Schema.js";
 export type {

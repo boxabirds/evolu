@@ -18,7 +18,7 @@ import {
   MutationOptions as BaseMutationOptions,
   Mutation as BaseMutation,
 } from "./Schema.js";
-import { CreateQuery, Query } from "./Query.js";
+import type { Query } from "./Query.js";
 
 /**
  * A simple owner identifier that represents any data owner in the system.
@@ -78,8 +78,8 @@ export interface MultiOwnerQueryOptions {
  * Extended query creation function that supports owner filtering
  */
 export interface MultiOwnerCreateQuery<S extends EvoluSchema> {
-  <T>(
-    queryCallback: Parameters<CreateQuery<S>>[0],
+  <T extends import("./Query.js").Row>(
+    queryCallback: (db: any) => Query<T>,
     options?: MultiOwnerQueryOptions,
   ): Query<T>;
 }

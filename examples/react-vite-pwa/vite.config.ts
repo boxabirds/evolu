@@ -8,7 +8,7 @@ export default defineConfig({
   cacheDir: ".vite",
   resolve: {
     alias: {
-      "@evolu/common/evolu": path.resolve(__dirname, "../../packages/common/src/Evolu/Public.ts"),
+      "@evolu/common/evolu": path.resolve(__dirname, "../../packages/common/src/Evolu/Internal.ts"),
       "@evolu/common": path.resolve(__dirname, "../../packages/common/src/index.ts"),
       "@evolu/react": path.resolve(__dirname, "../../packages/react/src/index.ts"),
       "@evolu/react-web": path.resolve(__dirname, "../../packages/react-web/src/index.ts"),
