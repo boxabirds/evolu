@@ -77,7 +77,7 @@ export interface GroupInviteManager {
     role: GroupRole,
     expiresInHours?: number,
     maxUses?: number
-  ) => Result<GroupInvite, GroupError | InviteError>;
+  ) => Result<GroupInvite, SqliteError | GroupError | InviteError>;
 
   /**
    * Validate an invite code.
@@ -91,7 +91,7 @@ export interface GroupInviteManager {
     inviteCode: string,
     userId: string,
     publicKey: string
-  ) => Result<void, GroupError | InviteError>;
+  ) => Result<void, SqliteError | GroupError | InviteError>;
   
   /**
    * Revoke an invite.
@@ -100,7 +100,7 @@ export interface GroupInviteManager {
   readonly revokeInvite: (
     inviteCode: string,
     reason?: string
-  ) => Result<void, GroupError | InviteError>;
+  ) => Result<void, SqliteError | GroupError | InviteError>;
   
   /**
    * List active invites for a group.
@@ -179,7 +179,7 @@ export const createGroupInviteManager = (
         );
 
         if (!currentUserMember || currentUserMember.role !== "admin") {
-          return err({ type: "InsufficientPermissions", required: "admin" as GroupRole });
+          return err({ type: "InsufficientPermissions" } as InviteError);
         }
 
         const now = new Date(deps.time.now());
@@ -218,7 +218,7 @@ export const createGroupInviteManager = (
           createdBy: deps.currentUserId,
           createdAt,
           expiresAt,
-          maxUses,
+          ...(maxUses !== undefined && { maxUses }),
           usedCount: 0,
           isRevoked: false,
         };
@@ -307,24 +307,24 @@ export const createGroupInviteManager = (
         `);
         
         if (!validation.ok || validation.value.rows.length === 0) {
-          return err({ type: "InvalidInviteFormat" });
+          return err({ type: "InvalidInviteFormat" } as InviteError);
         }
         
         const invite = validation.value.rows[0];
         
         if (invite.isRevoked) {
-          return err({ type: "InviteAlreadyUsed" });
+          return err({ type: "InviteAlreadyUsed" } as InviteError);
         }
 
         const now = deps.time.now();
         const expiresAt = new Date(invite.expiresAt).getTime();
 
         if (now > expiresAt) {
-          return err({ type: "InviteExpired" });
+          return err({ type: "InviteExpired" } as InviteError);
         }
 
         if (invite.maxUses && invite.usedCount >= invite.maxUses) {
-          return err({ type: "InviteAlreadyUsed" });
+          return err({ type: "InviteAlreadyUsed" } as InviteError);
         }
         
         // Add member to group (use internal to avoid nested transaction)
@@ -373,7 +373,7 @@ export const createGroupInviteManager = (
         `);
         
         if (!inviteResult.ok || inviteResult.value.rows.length === 0) {
-          return err({ type: "InvalidInviteFormat" });
+          return err({ type: "InvalidInviteFormat" } as InviteError);
         }
         
         const invite = inviteResult.value.rows[0];
@@ -397,7 +397,7 @@ export const createGroupInviteManager = (
           (currentUserMember.role === "admin" || invite.createdBy === deps.currentUserId);
         
         if (!canRevoke) {
-          return err({ type: "InsufficientPermissions" });
+          return err({ type: "InsufficientPermissions" } as InviteError);
         }
         
         // Revoke invite
@@ -435,7 +435,7 @@ export const createGroupInviteManager = (
       );
       
       if (!currentUserMember || currentUserMember.role !== "admin") {
-        return err({ type: "InsufficientPermissions", required: "admin" as GroupRole });
+        return err({ type: "InsufficientPermissions" } as InviteError);
       }
       
       const result = deps.sqlite.exec<{
@@ -461,20 +461,23 @@ export const createGroupInviteManager = (
       
       if (!result.ok) return result;
       
-      const invites = result.value.rows.map(row => ({
-        id: row.id,
-        groupId: row.groupId as GroupId,
-        inviteCode: row.inviteCode,
-        role: row.role as GroupRole,
-        createdBy: row.createdBy,
-        createdAt: row.createdAt,
-        expiresAt: row.expiresAt,
-        maxUses: row.maxUses || undefined,
-        usedCount: row.usedCount,
-        isRevoked: Boolean(row.isRevoked),
-        revokedAt: row.revokedAt || undefined,
-        revokedBy: row.revokedBy || undefined,
-      }));
+      const invites = result.value.rows.map(row => {
+        const invite: GroupInvite = {
+          id: row.id,
+          groupId: row.groupId as GroupId,
+          inviteCode: row.inviteCode,
+          role: row.role as GroupRole,
+          createdBy: row.createdBy,
+          createdAt: row.createdAt,
+          expiresAt: row.expiresAt,
+          usedCount: row.usedCount,
+          isRevoked: Boolean(row.isRevoked),
+        };
+        if (row.maxUses !== null) invite.maxUses = row.maxUses;
+        if (row.revokedAt !== null) invite.revokedAt = row.revokedAt;
+        if (row.revokedBy !== null) invite.revokedBy = row.revokedBy;
+        return invite;
+      });
       
       return ok(invites);
     },
@@ -491,16 +494,17 @@ export const createGroupInviteManager = (
       `);
       
       if (!result.ok || result.value.rows.length === 0) {
-        return err({ type: "InvalidInviteFormat" });
+        return err({ type: "InvalidInviteFormat" } as InviteError);
       }
       
       const stats = result.value.rows[0];
       
-      return ok({
+      const statsResult: { uses: number; maxUses?: number; isRevoked: boolean } = {
         uses: stats.usedCount,
-        maxUses: stats.maxUses || undefined,
         isRevoked: Boolean(stats.isRevoked),
-      });
+      };
+      if (stats.maxUses !== null) statsResult.maxUses = stats.maxUses;
+      return ok(statsResult);
     },
   };
 };

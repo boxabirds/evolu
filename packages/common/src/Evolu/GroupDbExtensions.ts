@@ -83,10 +83,10 @@ export const createGroupAwareStorage = <T extends object>(
   return {
     ...baseStorage,
     // These will be implemented in Phase 2
-    getGroupId: () => null,
-    validateGroupAccess: () => false,
-    getGroupEpoch: () => 0,
-  };
+    getGroupId: () => ok(null),
+    validateGroupAccess: () => ok(false),
+    getGroupEpoch: () => ok(0),
+  } as T & Partial<GroupStorage>;
 };
 
 /**

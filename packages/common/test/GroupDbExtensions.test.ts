@@ -74,9 +74,9 @@ describe("GroupDbExtensions", () => {
     expect(groupStorage.getGroupEpoch).toBeDefined();
     
     // Phase 1 implementations return defaults
-    expect(groupStorage.getGroupId?.("owner-123" as any)).toBe(null);
-    expect(groupStorage.validateGroupAccess?.("owner-123" as any, "group-123" as any)).toBe(false);
-    expect(groupStorage.getGroupEpoch?.("group-123" as any)).toBe(0);
+    expect(groupStorage.getGroupId?.("owner-123" as any)).toEqual({ ok: true, value: null });
+    expect(groupStorage.validateGroupAccess?.("owner-123" as any, "group-123" as any)).toEqual({ ok: true, value: false });
+    expect(groupStorage.getGroupEpoch?.("group-123" as any)).toEqual({ ok: true, value: 0 });
   });
 
   test("handleGroupDbWorkerMessage handles createGroup", () => {

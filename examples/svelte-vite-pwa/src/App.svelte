@@ -64,7 +64,7 @@
   const evolu = createEvolu(evoluSvelteDeps)(DatabaseSchema, {
     reloadUrl: "/",
     name: getOrThrow(SimpleName.from("evolu-svelte-example")),
-    enableGroups: true as any, // Enable group functionality - type assertion for now
+    enableGroups: true, // Enable group functionality
 
     ...(process.env.NODE_ENV === "development" && {
       syncUrl: "http://localhost:4000",
@@ -238,7 +238,7 @@
     handleUpdatePriority(id, event.target.value as unknown as TodoPriority);
   }
 
-  import GroupsDemoMock from './GroupsDemoMock.svelte';
+  import GroupsDemo from './GroupsDemo.svelte';
 </script>
 
 <main>
@@ -333,7 +333,7 @@
   </div>
 
   <hr style="margin: 40px 0" />
-  <GroupsDemoMock />
+  <GroupsDemo {evolu} />
 </main>
 
 <style>

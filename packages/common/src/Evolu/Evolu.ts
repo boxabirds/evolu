@@ -21,6 +21,8 @@ import {
 } from "../Type.js";
 import { IntentionalNever } from "../Types.js";
 import { Config, defaultConfig } from "./Config.js";
+import { GroupConfig, hasGroupsEnabled } from "./GroupConfig.js";
+import { createGroupAwareEvolu } from "./GroupEvolu.js";
 import { CreateDbWorkerDep } from "./Db.js";
 import { applyPatches } from "./Diff.js";
 import { kysely } from "./Kysely.js";
@@ -345,7 +347,7 @@ export type EvoluDeps = CreateDbWorkerDep &
   CreateAppStateDep;
 
 export interface EvoluConfigWithInitialData<S extends EvoluSchema = EvoluSchema>
-  extends Config {
+  extends GroupConfig {
   /**
    * Use this option to create initial data (fixtures).
    *
@@ -831,6 +833,11 @@ const createEvoluInstance =
       },
     };
 
+    // Wrap with group functionality if enabled
+    if (hasGroupsEnabled(evoluConfig)) {
+      return createGroupAwareEvolu(evolu, evoluConfig, deps as any) as any;
+    }
+    
     return evolu;
   };
 

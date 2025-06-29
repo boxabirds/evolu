@@ -34,17 +34,22 @@ export const groupContextToSharedOwner = (
   context: GroupContext
 ): SharedOwner => {
   // Phase 1: Create a placeholder SharedOwner
-  // The ID format matches what SharedOwner expects
-  const sharedOwnerId = `group:${context.groupId}` as SharedOwner["id"];
-  
-  // Phase 1: Use placeholder keys
   // Phase 2 will derive these from group epoch keys
-  const encryptionKey = new Uint8Array(32); // Placeholder
-  const writeKey = new Uint8Array(16); // Placeholder
+  
+  // Create a dummy mnemonic for now
+  const dummyMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" as import("../Type.js").Mnemonic;
+  
+  // Create placeholder writeKey
+  const writeKeyBytes = new Uint8Array(16);
+  // Fill with dummy data for Phase 1
+  for (let i = 0; i < 16; i++) {
+    writeKeyBytes[i] = i;
+  }
+  const writeKey = writeKeyBytes as import("./Owner.js").WriteKey;
   
   return {
-    id: sharedOwnerId,
-    encryptionKey,
+    type: "SharedOwner",
+    mnemonic: dummyMnemonic,
     writeKey,
   };
 };
@@ -81,20 +86,22 @@ export const enhanceMutationOptions = (
 
 /**
  * Check if a SharedOwner represents a group context.
+ * Phase 1: This is a placeholder - we can't determine this from SharedOwner alone.
+ * Phase 2: Will use proper group key derivation.
  */
 export const isGroupSharedOwner = (owner: SharedOwner): boolean => {
-  return owner.id.startsWith("group:");
+  // Phase 1: Always return false since we can't determine this
+  return false;
 };
 
 /**
  * Extract GroupId from a group SharedOwner.
+ * Phase 1: This is a placeholder - we can't extract GroupId from SharedOwner.
+ * Phase 2: Will use proper group key mapping.
  */
 export const extractGroupIdFromSharedOwner = (
   owner: SharedOwner
 ): GroupId | null => {
-  if (!isGroupSharedOwner(owner)) return null;
-  
-  // Remove "group:" prefix
-  const groupId = owner.id.substring(6);
-  return groupId as GroupId;
+  // Phase 1: Always return null since we can't extract this
+  return null;
 };

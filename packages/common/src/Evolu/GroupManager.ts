@@ -240,14 +240,17 @@ export const createGroupManager = (
 
     if (!result.ok) return result;
 
-    const members = result.value.rows.map(row => ({
-      id: row.id as MemberId,
-      userId: row.userId,
-      role: row.role as GroupRole,
-      publicKey: row.publicKey,
-      joinedAt: row.joinedAt as DateIsoString,
-      leftAt: row.leftAt ? row.leftAt as DateIsoString : undefined,
-    }));
+    const members = result.value.rows.map(row => {
+      const member: GroupMember = {
+        id: row.id as MemberId,
+        userId: row.userId,
+        role: row.role as GroupRole,
+        publicKey: row.publicKey,
+        joinedAt: row.joinedAt as DateIsoString,
+      };
+      if (row.leftAt) member.leftAt = row.leftAt as DateIsoString;
+      return member;
+    });
 
     return ok(members);
   };
@@ -411,7 +414,7 @@ export const createGroupManager = (
           const logResult = deps.activityLogger.log(
             groupId,
             deps.currentUserId as NonEmptyString,
-            "group_created",
+            "group_create" as GroupOperationType,
             1 as NonNegativeInt,
             undefined,
             createActivityMetadata.groupCreated(nameResult.value)
@@ -421,11 +424,10 @@ export const createGroupManager = (
 
         const group: Group = {
           id: groupId,
-          name: nameResult.value,
-          currentEpoch: 1 as NonNegativeInt,
-          createdAt: now,
-          createdBy: deps.currentUserId as NonEmptyString,
-          metadata: null,
+          name: nameResult.value.toString(),
+          currentEpoch: 1,
+          createdAt: new Date(now),
+          createdBy: deps.currentUserId,
         };
 
         const member: GroupMember = {
@@ -433,7 +435,7 @@ export const createGroupManager = (
           userId: deps.currentUserId,
           role: "admin" as GroupRole,
           publicKey: "placeholder-public-key",
-          joinedAt: now,
+          joinedAt: new Date(now),
         };
 
         return ok(createGroupWithMembers(group, [member]));
@@ -463,11 +465,10 @@ export const createGroupManager = (
 
       const group: Group = {
         id: row.id as GroupId,
-        name: row.name as NonEmptyString50,
-        currentEpoch: row.currentEpoch as NonNegativeInt,
-        createdAt: row.createdAt as DateIsoString,
-        createdBy: row.createdBy as NonEmptyString,
-        metadata: row.metadata as NonEmptyString | null,
+        name: row.name,
+        currentEpoch: row.currentEpoch,
+        createdAt: new Date(row.createdAt),
+        createdBy: row.createdBy,
       };
 
       return ok(createGroupWithMembers(group, membersResult.value));
@@ -494,11 +495,10 @@ export const createGroupManager = (
 
       const groups = result.value.rows.map(row => ({
         id: row.id as GroupId,
-        name: row.name as NonEmptyString50,
-        currentEpoch: row.currentEpoch as NonNegativeInt,
-        createdAt: row.createdAt as DateIsoString,
-        createdBy: row.createdBy as NonEmptyString,
-        metadata: row.metadata as NonEmptyString | null,
+        name: row.name,
+        currentEpoch: row.currentEpoch,
+        createdAt: new Date(row.createdAt),
+        createdBy: row.createdBy,
       }));
 
       return ok(groups);
@@ -743,7 +743,7 @@ export const createGroupManager = (
             "group_updated",
             1,
             undefined,
-            createActivityMetadata.groupUpdated(updates)
+            createActivityMetadata.groupUpdated(updates as Record<string, unknown>)
           );
         }
 

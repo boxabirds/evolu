@@ -19,9 +19,8 @@ describe("GroupMutationExtensions", () => {
     
     const sharedOwner = groupContextToSharedOwner(context);
     
-    expect(sharedOwner.id).toBe("group:group-123");
-    expect(sharedOwner.encryptionKey).toBeInstanceOf(Uint8Array);
-    expect(sharedOwner.encryptionKey.length).toBe(32);
+    expect(sharedOwner.type).toBe("SharedOwner");
+    expect(sharedOwner.mnemonic).toBeDefined();
     expect(sharedOwner.writeKey).toBeInstanceOf(Uint8Array);
     expect(sharedOwner.writeKey.length).toBe(16);
   });
@@ -41,7 +40,9 @@ describe("GroupMutationExtensions", () => {
     
     expect(enhanced).toBeDefined();
     expect(enhanced!.owner).toBeDefined();
-    expect(enhanced!.owner!.id).toBe("group:group-456");
+    expect((enhanced!.owner as SharedOwner).type).toBe("SharedOwner");
+    expect((enhanced!.owner as SharedOwner).mnemonic).toBeDefined();
+    expect((enhanced!.owner as SharedOwner).writeKey).toBeDefined();
     expect(enhanced!.onComplete).toBe(options.onComplete);
   });
 

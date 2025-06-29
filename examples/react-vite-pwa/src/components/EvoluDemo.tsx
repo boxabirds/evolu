@@ -105,7 +105,7 @@ const formatTypeError = createFormatTypeError<
 export const evolu = createEvolu(evoluReactWebDeps)(Schema, {
   name: getOrThrow(SimpleName.from("evolu-react-vite-pwa-example")),
   reloadUrl: "/",
-  enableGroups: true as any, // Enable group functionality - type assertion for now
+  enableGroups: true, // Enable group functionality
 
   ...(process.env.NODE_ENV === "development" && {
     syncUrl: "http://localhost:4000",

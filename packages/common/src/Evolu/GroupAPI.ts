@@ -54,7 +54,7 @@ export interface EvoluWithGroups<S extends EvoluSchema = EvoluSchema> extends Ev
    * }
    * ```
    */
-  readonly joinGroup: (inviteCode: string) => Promise<Result<void, GroupError | InviteError>>;
+  readonly joinGroup: (inviteCode: string) => Promise<Result<void, SqliteError | GroupError | InviteError>>;
 
   /**
    * Leave a group.
@@ -169,7 +169,7 @@ export interface EvoluWithGroups<S extends EvoluSchema = EvoluSchema> extends Ev
     role: GroupRole,
     expiresInHours?: number,
     maxUses?: number
-  ) => Promise<Result<{ inviteCode: string }, GroupError | InviteError>>;
+  ) => Promise<Result<{ inviteCode: string }, SqliteError | GroupError | InviteError>>;
 
   /**
    * Check if groups are supported.

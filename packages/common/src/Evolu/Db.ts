@@ -52,6 +52,10 @@ import {
   OwnerId,
 } from "./Owner.js";
 import {
+  migrateToMultiOwner,
+  needsMultiOwnerMigration,
+} from "./MultiOwnerMigration.js";
+import {
   applyProtocolMessageAsClient,
   Base64Url256,
   BinaryId,
@@ -285,6 +289,21 @@ export const createDbWorkerForPlatform = (
         if (!appOwnerAndOwnerRow.ok) return appOwnerAndOwnerRow;
 
         const [appOwner, ownerRow] = appOwnerAndOwnerRow.value;
+
+        // Check if we need to migrate to multi-owner
+        if (needsMultiOwnerMigration(currentDbSchema.value)) {
+          const migrationResult = migrateToMultiOwner({ sqlite })(
+            currentDbSchema.value,
+            appOwner.id,
+          );
+          if (!migrationResult.ok) return migrationResult;
+          
+          platformDeps.console.log(
+            "[db]",
+            "Migrated to multi-owner",
+            migrationResult.value,
+          );
+        }
 
         const depsWithoutSyncAndStorage = {
           ...platformDeps,
@@ -721,14 +740,16 @@ const ensureDbSchema =
 export const createAppTable = (
   tableName: string,
   columns: ReadonlyArray<string>,
+  multiOwner: boolean = false,
 ): SafeSql =>
   `
     create table ${sql.identifier(tableName).sql} (
       "id" text primary key,
+      ${multiOwner ? `"ownerId" blob not null,` : ""}
       ${columns
         // Add default columns.
         .concat(["createdAt", "updatedAt", "isDeleted"])
-        .filter((c) => c !== "id")
+        .filter((c) => c !== "id" && c !== "ownerId")
         // "A column with affinity BLOB does not prefer one storage class over another
         // and no attempt is made to coerce data from one storage class into another."
         // https://www.sqlite.org/datatype3.html

@@ -78,7 +78,7 @@ export interface GroupStorage extends Storage {
 /**
  * Group protocol error for group-specific validation failures.
  */
-export interface GroupProtocolError extends ProtocolError {
+export interface GroupProtocolError {
   readonly type: "GroupProtocolError";
   readonly groupId: GroupId;
   readonly reason: "access_denied" | "invalid_epoch" | "operation_not_allowed" | "group_not_found";
@@ -106,7 +106,6 @@ const validateGroupMessage = (
   if (!accessResult.value) {
     return err<GroupProtocolError>({
       type: "GroupProtocolError",
-      ownerId: message.ownerId,
       groupId: context.groupId,
       reason: "access_denied",
     });
@@ -119,7 +118,6 @@ const validateGroupMessage = (
   if (context.epochNumber > epochResult.value) {
     return err<GroupProtocolError>({
       type: "GroupProtocolError",
-      ownerId: message.ownerId,
       groupId: context.groupId,
       reason: "invalid_epoch",
     });
@@ -140,7 +138,6 @@ const validateGroupMessage = (
     if (!opResult.value) {
       return err<GroupProtocolError>({
         type: "GroupProtocolError",
-        ownerId: message.ownerId,
         groupId: context.groupId,
         reason: "operation_not_allowed",
       });

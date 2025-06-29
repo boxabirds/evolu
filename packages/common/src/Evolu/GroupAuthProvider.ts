@@ -292,3 +292,16 @@ export class GroupAuthProvider implements AuthProvider {
     return this.allMembers;
   }
 }
+
+/**
+ * Creates a new GroupAuthProvider.
+ */
+export const createGroupAuthProvider = (
+  groupId: GroupId,
+  currentEpoch: NonNegativeInt,
+  members: ReadonlyArray<GroupMember>,
+  currentUserId: string,
+  deps: Pick<CryptoDep, "sha256">
+): GroupAuthProvider => {
+  return new BasicGroupAuthProvider(groupId, currentEpoch, members, currentUserId, deps);
+};

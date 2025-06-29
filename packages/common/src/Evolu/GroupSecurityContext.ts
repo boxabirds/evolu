@@ -157,3 +157,19 @@ export class GroupSecurityContext implements SecurityContext {
     return `GroupSecurityContext(group=${this.group.name}, epoch=${this.group.currentEpoch}, member=${this.memberId}, role=${this.memberRole})`;
   }
 }
+
+/**
+ * Creates a new GroupSecurityContext.
+ */
+export const createGroupSecurityContext = (
+  group: {
+    id: GroupId;
+    currentEpoch: number;
+    name: string;
+  },
+  memberId: string,
+  memberRole: GroupRole,
+  deps: Pick<EvoluDeps, "nanoid">
+): GroupSecurityContext => {
+  return new GroupSecurityContext(group, memberId, memberRole, deps);
+};
