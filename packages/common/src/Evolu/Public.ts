@@ -41,3 +41,51 @@ export type {
   TimestampError,
   TimestampTimeOutOfRangeError,
 } from "./Timestamp.js";
+
+// Group functionality exports
+export type {
+  Group,
+  GroupId,
+  GroupRole,
+  MemberId,
+  EpochId,
+  EpochKeyId,
+} from "./GroupSchema.js";
+
+export type {
+  GroupConfig,
+} from "./GroupConfig.js";
+export { hasGroupsEnabled } from "./GroupConfig.js";
+
+export type {
+  EvoluWithGroups,
+  GroupContext,
+  MutationContextOptions,
+} from "./GroupAPI.js";
+export { hasGroupSupport } from "./GroupAPI.js";
+
+export type {
+  GroupManager,
+  GroupMember,
+  GroupWithMembers,
+  GroupError,
+} from "./GroupManager.js";
+
+export type {
+  GroupInvite,
+  GroupInviteManager,
+  InviteError,
+  InviteValidation,
+} from "./GroupInvite.js";
+
+export type {
+  GroupMutationOptions,
+} from "./GroupMutationExtensions.js";
+export {
+  groupContextToSharedOwner,
+  isGroupSharedOwner,
+  extractGroupIdFromSharedOwner,
+} from "./GroupMutationExtensions.js";
+
+export { createGroupAwareEvolu, isGroupAwareEvolu } from "./GroupEvolu.js";
+export type { GroupEvoluDeps } from "./GroupEvolu.js";

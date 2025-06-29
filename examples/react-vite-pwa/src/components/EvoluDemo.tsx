@@ -102,9 +102,10 @@ const formatTypeError = createFormatTypeError<
   }
 });
 
-const evolu = createEvolu(evoluReactWebDeps)(Schema, {
+export const evolu = createEvolu(evoluReactWebDeps)(Schema, {
   name: getOrThrow(SimpleName.from("evolu-react-vite-pwa-example")),
   reloadUrl: "/",
+  enableGroups: true as any, // Enable group functionality - type assertion for now
 
   ...(process.env.NODE_ENV === "development" && {
     syncUrl: "http://localhost:4000",

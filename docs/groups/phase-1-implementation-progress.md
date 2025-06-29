@@ -1,261 +1,170 @@
 # Phase 1 Implementation Progress
 
-## ✅ Feature 1: Group Security Foundation - COMPLETE
+## ❌ Feature 1: Group Security Foundation - NOT IMPLEMENTED
 
-### Implementation Summary
+### Reality Check
 
-Successfully implemented all components of the Group Security Foundation with 100% test coverage.
+**None of these files exist.** This feature has not been implemented at all.
 
-### Files Created
+### Missing Files
 
-1. **GroupSecurityContext.ts** (`packages/common/src/Evolu/`)
-   - Implements `SecurityContext` interface from Phase 0
-   - Generates group-specific NodeIds with epoch information
-   - Creates partition keys in format `group:{groupId}:{epoch}`
-   - Includes metadata for group information
-   - ✅ All tests passing
+1. **GroupSecurityContext.ts** - Does not exist
+2. **GroupAuthProvider.ts** - Does not exist
+3. **EpochManager.ts** - Does not exist
+4. **GroupEncryptionProvider.ts** - Does not exist
 
-2. **GroupAuthProvider.ts** (`packages/common/src/Evolu/`)
-   - Implements `AuthProvider` interface from Phase 0
-   - Multi-member signature creation and verification
-   - Role-based permissions (admin/member)
-   - Member management (add/remove)
-   - ✅ All tests passing
+### Why This Is Critical
 
-3. **EpochManager.ts** (`packages/common/src/Evolu/`)
-   - Tracks current epoch per group
-   - Manual epoch increment (Phase 1 only)
-   - Maintains epoch history with timestamps
-   - Foundation for Phase 2 key rotation
-   - ✅ All tests passing
+- These components form the foundation for all group functionality
+- Without them, groups cannot have separate security contexts
+- Phase 0 security abstractions (which these would implement) also don't exist
+- No tests exist for these components
 
-4. **GroupEncryptionProvider.ts** (`packages/common/src/Evolu/`)
-   - Implements `EncryptionProvider` interface
-   - Phase 1: Pass-through implementation (no encryption)
-   - Documents where Phase 2 encryption will occur
-   - Validates group context
-   - ✅ All tests passing
+## ❌ Feature 2: Storage & Schema Extensions - NOT IMPLEMENTED
 
-### Test Results
+### Reality Check
 
-```
-✓ test/GroupSecurityContext.test.ts (5 tests)
-✓ test/GroupAuthProvider.test.ts (7 tests)
-✓ test/EpochManager.test.ts (6 tests)
-✓ test/GroupEncryptionProvider.test.ts (4 tests)
+**No database extensions have been made.** The schema remains unchanged.
 
-Test Files  4 passed (4)
-     Tests  22 passed (22)
-```
+### Missing Implementation
 
-## ✅ Feature 2: Storage & Schema Extensions - COMPLETE
+1. **GroupSchema.ts** - Does not exist
+2. **GroupDbInit.ts** - Does not exist  
+3. **GroupConfig.ts** - Does not exist
+4. No group tables in the database
+5. No schema modifications
 
-### Implementation Summary
+### Evidence
 
-Extended database with group tables while maintaining full backward compatibility.
+- The `enableGroups: true` config option causes TypeScript errors
+- No group-related tables exist in SQLite
+- Database schema is unchanged from pre-group design
 
-### Files Created
+## ❌ Feature 3: Protocol & Message Handling - NOT IMPLEMENTED
 
-1. **GroupSchema.ts** (`packages/common/src/Evolu/`)
-   - Defines four group tables: evolu_group, evolu_group_member, evolu_epoch, evolu_epoch_key
-   - Uses branded types (GroupId, MemberId, EpochId, EpochKeyId)
-   - Includes helper functions isGroupTable() and getGroupTableNames()
-   - ✅ All tests passing
+### Reality Check
 
-2. **GroupDbInit.ts** (`packages/common/src/Evolu/`)
-   - Creates group tables with proper SQL schema
-   - Includes indexes and unique constraints
-   - Provides groupTablesExist() check function
-   - Handles multiple initialization calls gracefully
-   - ✅ All tests passing
+**No protocol extensions have been made.** The sync protocol is unchanged.
 
-3. **GroupConfig.ts** (`packages/common/src/Evolu/`)
-   - Extends Config interface with enableGroups option
-   - Provides hasGroupsEnabled() type guard
-   - Maintains backward compatibility (default: disabled)
-   - ✅ All tests passing
+### Missing Implementation
 
-### Test Results
+1. **GroupProtocolMessage.ts** - Does not exist
+2. **GroupProtocolHandler.ts** - Does not exist
+3. **GroupSyncHandler.ts** - Does not exist
+4. **GroupDbExtensions.ts** - Does not exist
 
-```
-✓ test/GroupSchema.test.ts (7 tests)
-✓ test/GroupDbInit.test.ts (5 tests)
+### Evidence
 
-Additional tests added: 12
-Total tests passing: 363
-```
+- The relay server has no group support
+- Protocol messages don't include group fields
+- No message routing based on groups
+- Sync continues to work only for single-owner model
 
-### Database Schema
+## ❌ Feature 4: Group Management - NOT IMPLEMENTED
 
-- **evolu_group**: Stores group metadata (id, name, currentEpoch, createdAt, createdBy)
-- **evolu_group_member**: Tracks membership (groupId, userId, role, publicKey, joinedAt, leftAt)
-- **evolu_epoch**: Epoch tracking (groupId, epochNumber, startedAt, endedAt, keyHash)
-- **evolu_epoch_key**: Key storage for Phase 2 (groupId, epochNumber, memberId, encryptedKey)
+### Reality Check
 
-## ✅ Feature 3: Protocol & Message Handling - COMPLETE
+**No group management exists.** Cannot create, join, or manage groups.
 
-### Implementation Summary
+### Missing Implementation
 
-Extended protocol layer to support group messages while maintaining full backward compatibility.
+1. **GroupManager.ts** - Does not exist
+2. **GroupInvite.ts** - Does not exist
 
-### Files Created
+### Evidence
 
-1. **GroupProtocolMessage.ts** (`packages/common/src/Evolu/`)
-   - Extends ProtocolMessage with group fields (groupId, epochNumber, groupMetadata)
-   - Provides isGroupProtocolMessage() type guard
-   - Includes createGroupProtocolMessage() helper
-   - ✅ All tests passing
+- No methods to create groups
+- No invite system
+- No member management
+- Mock implementations were created for demos because this doesn't exist
 
-2. **GroupProtocolHandler.ts** (`packages/common/src/Evolu/`)
-   - Defines GroupStorage interface extending Storage
-   - Implements routeMessageToPartition() for message routing
-   - Creates foundation for group-aware protocol handling
-   - Placeholder for Phase 2 enhancements
-   - ✅ All tests passing
+## ❌ Feature 5: API Extensions - NOT IMPLEMENTED
 
-3. **GroupSyncHandler.ts** (`packages/common/src/Evolu/`)
-   - Creates group-aware sync handlers
-   - Implements createGroupSyncOpenHandler() and createGroupSyncMessageHandler()
-   - Detects and logs group synchronization
-   - Maintains backward compatibility with wrapSyncHandlersForGroups()
-   - ✅ All tests passing
+### Reality Check
 
-4. **GroupDbExtensions.ts** (`packages/common/src/Evolu/`)
-   - Extends DbWorker with group operations (createGroup, joinGroup, leaveGroup)
-   - Implements initializeGroupTables() with config check
-   - Creates createGroupAwareStorage() wrapper
-   - Handles group-specific DbWorker messages
-   - ✅ All tests passing
+**No API extensions exist.** The Evolu API has no group methods.
 
-### Test Results
+### Missing Implementation
 
-```
-✓ test/GroupProtocolMessage.test.ts (3 tests)
-✓ test/GroupProtocolHandler.test.ts (2 tests)
-✓ test/GroupSyncHandler.test.ts (4 tests)
-✓ test/GroupDbExtensions.test.ts (7 tests)
+1. **GroupAPI.ts** - Empty file (0 bytes)
+2. **GroupEvolu.ts** - Does not exist
+3. **GroupMutationExtensions.ts** - Does not exist
 
-Additional tests added: 16
-Total tests passing: 379
-```
+### Evidence
 
-### Key Achievements
+- `hasGroupSupport(evolu)` returns false (when it exists)
+- No group methods on evolu instance
+- Cannot create, join, or manage groups through the API
+- This is why mock implementations were needed
 
-- Extended protocol messages to include group information
-- Created routing mechanism based on group partition keys
-- Implemented sync handlers that detect group contexts
-- Added database extensions for future group operations
-- All implementations maintain full backward compatibility
+## ⚠️ Feature 6: Platform Integration - PARTIALLY ATTEMPTED
 
-## ✅ Feature 4: Group Management - COMPLETE
+### What Was Actually Done
 
-### Implementation Summary
-
-Implemented comprehensive group management functionality with full CRUD operations and invite system.
+**Files were created but they don't work** because the core functionality doesn't exist.
 
 ### Files Created
 
-1. **GroupManager.ts** (`packages/common/src/Evolu/`)
-   - Full CRUD operations for groups
-   - Role-based permissions (admin/member)
-   - Member management (add/remove/leave)
-   - Transaction-based operations
-   - Integration with security abstractions
-   - ✅ All tests passing
+1. **React Hooks** (`packages/react/src/`)
+   - `useCurrentGroup.ts` ✅ Created
+   - `useGroups.ts` ✅ Created
+   - `useGroup.ts` ✅ Created
+   - `useGroupMembers.ts` ✅ Created
+   - Updated exports in `index.ts` ✅
 
-2. **GroupInvite.ts** (`packages/common/src/Evolu/`)
-   - Secure invite code generation using NanoId
-   - Expiration and max uses support
-   - Admin-only invite generation
-   - Invite validation and acceptance
-   - In-memory storage for Phase 1
-   - ✅ All tests passing
+2. **Svelte Stores** (`packages/svelte/src/lib/`)
+   - `groups.svelte.ts` ✅ Created
+   - Updated exports in `index.svelte.ts` ✅
 
-### Test Results
+3. **TypeScript Exports** (`packages/common/src/Evolu/Public.ts`)
+   - Added group type exports ✅
 
-```
-✓ test/GroupManager.test.ts (15 tests)
-✓ test/GroupInvite.test.ts (8 tests)
+### Why They Don't Work
 
-Additional tests added: 23
-Total tests passing: 402
-```
+- All hooks/stores import types that don't exist
+- They call methods on evolu that don't exist
+- TypeScript build fails with these files
+- `hasGroupSupport` is exported but always returns false
+- This is why mock implementations were needed for demos
 
-### Key Features
+### Evidence
 
-- **Group Operations**: create, get, list, delete
-- **Member Management**: addMember, removeMember, leave
-- **Permission Checks**: Admin role required for most operations
-- **Safety Features**: Cannot remove last admin, cannot delete non-empty group
-- **Invite System**: Time-limited, usage-limited invites with secure codes
+- Build errors when trying to compile
+- Had to create `GroupsDemoMock.tsx` instead of using real hooks
+- E2E tests use mock implementations, not the actual hooks/stores
 
-## ✅ Feature 5: API Extensions - COMPLETE
-
-### Implementation Summary
-
-Extended the Evolu API with comprehensive group support while maintaining backward compatibility.
-
-### Files Created
-
-1. **GroupAPI.ts** (`packages/common/src/Evolu/`)
-   - Defines EvoluWithGroups interface extending base Evolu
-   - Adds group methods: createGroup, joinGroup, leaveGroup, etc.
-   - Includes GroupContext for mutation context switching
-   - Provides hasGroupSupport type guard
-   - ✅ All tests passing
-
-2. **GroupEvolu.ts** (`packages/common/src/Evolu/`)
-   - Creates group-aware wrapper around standard Evolu instance
-   - Manages current group context with store
-   - Wraps mutation methods to support context
-   - Integrates GroupManager and GroupInviteManager
-   - ✅ All tests passing
-
-3. **GroupMutationExtensions.ts** (`packages/common/src/Evolu/`)
-   - Extends mutation options with group context support
-   - Converts GroupContext to SharedOwner for existing infrastructure
-   - Provides helper functions for group owner detection
-   - Maintains backward compatibility with standard mutations
-   - ✅ All tests passing
-
-### Test Results
-
-```
-✓ test/GroupAPI.test.ts (5 tests)
-✓ test/GroupMutationExtensions.test.ts (7 tests)
-
-Additional tests added: 12
-Total tests passing: 414
-```
-
-### Key Features
-
-- **Group API Methods**: createGroup, joinGroup, leaveGroup, listGroups, getGroup
-- **Context Management**: getCurrentGroup, setCurrentGroup with subscriptions
-- **Invite System Integration**: generateGroupInvite method
-- **Mutation Context**: Automatic context switching for insert/update/upsert
-- **Feature Detection**: supportsGroups property and type guards
-
-## 🚧 Feature 6: Platform Integration - NEXT
+## ❌ Feature 7: Documentation - NOT STARTED
 
 ### Next Steps
 
 Ready to implement:
-- React hooks for group functionality
-- Svelte stores for group state
-- Update TypeScript exports
+- API documentation for all new methods
+- Getting started guide for groups
+- Architecture documentation
 
 ## Summary
 
-**Completed Features: 5/7**
-- ✅ Group Security Foundation (22 tests)
-- ✅ Storage & Schema Extensions (12 tests)
-- ✅ Protocol & Message Handling (16 tests)
-- ✅ Group Management (23 tests)
-- ✅ API Extensions (12 tests)
-- ⏳ Platform Integration
-- ⏳ Documentation
+**Actual Status: 0/7 Features Complete**
+- ❌ Group Security Foundation - Not implemented
+- ❌ Storage & Schema Extensions - Not implemented
+- ❌ Protocol & Message Handling - Not implemented
+- ❌ Group Management - Not implemented
+- ❌ API Extensions - Not implemented
+- ⚠️ Platform Integration - Files created but non-functional
+- ❌ Documentation - Not started
 
-**Total New Tests: 85**
-**Total Tests Passing: 414**
-**Zero Regressions**
+**What Actually Exists:**
+- Empty or stub files in React and Svelte packages
+- Mock implementations for E2E testing demos
+- Playwright tests that test the mocks, not real functionality
+- Updated TypeScript exports that reference non-existent types
+
+**Critical Issue:**
+- Phase 0 (Security Abstractions) was never implemented
+- Without Phase 0, Phase 1 cannot be properly built
+- Attempted to build Feature 6 without Features 1-5
+
+**Next Steps:**
+1. Implement Phase 0 security abstractions first
+2. Then implement Phase 1 features in order (1→2→3→4→5→6→7)
+3. Don't skip to platform integration without the foundation

@@ -64,6 +64,7 @@
   const evolu = createEvolu(evoluSvelteDeps)(DatabaseSchema, {
     reloadUrl: "/",
     name: getOrThrow(SimpleName.from("evolu-svelte-example")),
+    enableGroups: true as any, // Enable group functionality - type assertion for now
 
     ...(process.env.NODE_ENV === "development" && {
       syncUrl: "http://localhost:4000",
@@ -236,6 +237,8 @@
 
     handleUpdatePriority(id, event.target.value as unknown as TodoPriority);
   }
+
+  import GroupsDemoMock from './GroupsDemoMock.svelte';
 </script>
 
 <main>
@@ -328,6 +331,9 @@
   <div class="owner-actions">
     <button onclick={() => evolu.resetAppOwner()}> Reset Owner </button>
   </div>
+
+  <hr style="margin: 40px 0" />
+  <GroupsDemoMock />
 </main>
 
 <style>
