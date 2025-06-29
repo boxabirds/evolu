@@ -2,17 +2,29 @@ import { expect, test, describe, vi } from "vitest";
 import { 
   createGroupSyncOpenHandler,
   createGroupSyncMessageHandler,
-  wrapSyncHandlersForGroups,
+  createGroupSyncConfig,
+  filterGroupSyncRanges,
+  shouldSyncGroupData,
+  planGroupSyncOperations,
   type GroupOwnerRowRef,
-  type GroupSyncDeps
+  type GroupSyncDeps,
+  type GroupSyncOperation,
 } from "../src/Evolu/GroupSyncHandler.js";
 import type { GroupStorage } from "../src/Evolu/GroupProtocolHandler.js";
 import type { SyncConfig } from "../src/Evolu/Sync.js";
-import type { ProtocolMessage, Storage } from "../src/Evolu/Protocol.js";
+import type { 
+  ProtocolMessage, 
+  Storage,
+  BinaryOwnerId,
+  Range,
+} from "../src/Evolu/Protocol.js";
 import * as Protocol from "../src/Evolu/Protocol.js";
-import type { GroupId } from "../src/Evolu/GroupSchema.js";
-import { ok } from "../src/Result.js";
-import type { OwnerRow } from "../src/Evolu/Owner.js";
+import { protocolVersion } from "../src/Evolu/Protocol.js";
+import type { GroupId } from "../src/Evolu/GroupTypes.js";
+import { ok, err } from "../src/Result.js";
+import type { OwnerRow, OwnerId } from "../src/Evolu/Owner.js";
+import { NonEmptyString, NonNegativeInt } from "../src/Type.js";
+import type { GroupProtocolMessage } from "../src/Evolu/GroupProtocolMessage.js";
 
 describe("GroupSyncHandler", () => {
   const createMockDeps = (): GroupSyncDeps & { ownerRowRef: GroupOwnerRowRef } => {
@@ -31,10 +43,12 @@ describe("GroupSyncHandler", () => {
 
     const mockGroupStorage: GroupStorage = {
       ...mockStorage,
-      getGroupId: () => null,
-      validateGroupAccess: () => false,
-      getGroupEpoch: () => 0,
-    };
+      getGroupId: vi.fn(() => ok(null)),
+      validateGroupAccess: vi.fn(() => ok(true)),
+      getGroupEpoch: vi.fn(() => ok(0 as typeof NonNegativeInt.Type)),
+      validateGroupOperation: vi.fn(() => ok(true)),
+      recordGroupActivity: vi.fn(() => ok()),
+    } as unknown as GroupStorage;
 
     const mockOwnerRow: OwnerRow & { groupId?: GroupId } = {
       id: "owner-123" as any,
@@ -65,11 +79,16 @@ describe("GroupSyncHandler", () => {
   test("createGroupSyncOpenHandler sends initial sync message", () => {
     const deps = createMockDeps();
     const sendMock = vi.fn();
-    const mockMessage = new Uint8Array([1, 2, 3]) as ProtocolMessage;
+    const mockMessage: ProtocolMessage = {
+      protocolVersion,
+      ownerId: "owner123" as unknown as BinaryOwnerId,
+      messages: [],
+      ranges: [],
+    };
     
     // Mock createProtocolMessageForSync
     vi.spyOn(Protocol, 'createProtocolMessageForSync').mockImplementation(
-      () => () => mockMessage
+      () => () => ok(mockMessage)
     );
     
     const handler = createGroupSyncOpenHandler(deps);
@@ -86,31 +105,41 @@ describe("GroupSyncHandler", () => {
     expect(sendMock).toHaveBeenCalledWith(mockMessage);
   });
 
-  test("createGroupSyncOpenHandler detects group owner", () => {
+  test("createGroupSyncOpenHandler enhances message with group context", () => {
     const deps = createMockDeps();
-    const originalGet = deps.ownerRowRef.get;
-    deps.ownerRowRef.get = () => ({
-      ...originalGet(),
-      groupId: "group-123" as GroupId,
-    });
+    deps.groupStorage!.getGroupId = vi.fn(() => ok("group-123" as GroupId));
+    deps.groupStorage!.getGroupEpoch = vi.fn(() => ok(3 as typeof NonNegativeInt.Type));
     
     const sendMock = vi.fn();
-    const mockMessage = new Uint8Array([1, 2, 3]) as ProtocolMessage;
+    const baseMessage: ProtocolMessage = {
+      protocolVersion,
+      ownerId: "owner123" as unknown as BinaryOwnerId,
+      messages: [],
+      ranges: [],
+    };
     
     // Mock createProtocolMessageForSync
     vi.spyOn(Protocol, 'createProtocolMessageForSync').mockImplementation(
-      () => () => mockMessage
+      () => () => ok(baseMessage)
     );
     
     const handler = createGroupSyncOpenHandler(deps);
     handler(sendMock);
     
-    // Should log group detection
+    // Should log group context
     expect(deps.console.log).toHaveBeenCalledWith(
       "[db]",
-      "group sync detected",
-      "group-123"
+      "group sync open",
+      {
+        groupId: "group-123",
+        epochNumber: 3,
+      }
     );
+    
+    // Should send enhanced message
+    const sentMessage = sendMock.mock.calls[0][0] as GroupProtocolMessage;
+    expect(sentMessage.groupId).toBe("group-123");
+    expect(sentMessage.epochNumber).toBe(3);
   });
 
   test("createGroupSyncMessageHandler processes incoming messages", () => {
@@ -137,16 +166,89 @@ describe("GroupSyncHandler", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  test("wrapSyncHandlersForGroups returns config unchanged in Phase 1", () => {
-    const mockConfig: SyncConfig = {
-      syncUrl: "wss://example.com",
-      onOpen: vi.fn(),
-      onMessage: vi.fn(),
+  test("createGroupSyncConfig creates complete sync configuration", () => {
+    const deps = createMockDeps();
+    const config = createGroupSyncConfig(deps);
+    
+    expect(config.onOpen).toBeDefined();
+    expect(config.onMessage).toBeDefined();
+    expect(config.onError).toBeDefined();
+    expect(config.onClose).toBeDefined();
+  });
+  
+  test("filterGroupSyncRanges returns ranges unchanged in Phase 1", () => {
+    const deps = createMockDeps();
+    const ranges: Range[] = [
+      { type: "Skip", upper: new Uint8Array() },
+      { type: "Fingerprint", upper: new Uint8Array(), fingerprint: new Uint8Array() },
+    ];
+    
+    const result = filterGroupSyncRanges(
+      ranges,
+      "group-123" as GroupId,
+      2,
+      deps.groupStorage!
+    );
+    
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual(ranges);
+    }
+  });
+  
+  test("shouldSyncGroupData checks if owner belongs to group", () => {
+    const deps = createMockDeps();
+    
+    // Test non-group owner
+    deps.groupStorage!.getGroupId = vi.fn(() => ok(null));
+    const result1 = shouldSyncGroupData(
+      "owner-123" as OwnerId,
+      deps.groupStorage!
+    );
+    expect(result1).toEqual(ok(false));
+    
+    // Test group owner
+    deps.groupStorage!.getGroupId = vi.fn(() => ok("group-123" as GroupId));
+    const result2 = shouldSyncGroupData(
+      "owner-123" as OwnerId,
+      deps.groupStorage!
+    );
+    expect(result2).toEqual(ok(true));
+  });
+  
+  test("planGroupSyncOperations creates sync plan based on state", () => {
+    const localState = {
+      groupId: "group-123" as GroupId,
+      epochNumber: 2,
+      lastSyncedEpoch: 2,
+      pendingOperations: ["member_add", "member_remove"] as any,
     };
     
-    const wrappedConfig = wrapSyncHandlersForGroups(mockConfig);
+    // Test when remote is ahead
+    const ops1 = planGroupSyncOperations(localState, 5);
+    expect(ops1).toHaveLength(2);
+    expect(ops1[0]).toEqual({
+      type: "sync_epochs",
+      groupId: "group-123",
+      fromEpoch: 2,
+      toEpoch: 5,
+    });
+    expect(ops1[1]).toEqual({
+      type: "sync_members",
+      groupId: "group-123",
+      epochNumber: 2,
+    });
     
-    // In Phase 1, it should return the same config
-    expect(wrappedConfig).toBe(mockConfig);
+    // Test when synced but with pending operations
+    const ops2 = planGroupSyncOperations({ ...localState, epochNumber: 5 }, 5);
+    expect(ops2).toHaveLength(1);
+    expect(ops2[0].type).toBe("sync_members");
+    
+    // Test when fully synced
+    const ops3 = planGroupSyncOperations(
+      { ...localState, epochNumber: 5, pendingOperations: [] },
+      5
+    );
+    expect(ops3).toHaveLength(0);
   });
 });
