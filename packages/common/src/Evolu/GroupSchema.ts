@@ -5,7 +5,10 @@
 
 import { id, type InferType } from "../Type.js";
 import { SqliteBoolean } from "../Sqlite.js";
-import { NonEmptyString, NonEmptyString50, nullOr, DateIsoString, NonNegativeInt } from "../Type.js";
+import { NonEmptyString, nullOr, DateIsoString, NonNegativeInt, String, minLength, maxLength } from "../Type.js";
+
+// Create NonEmptyString50 since it's not exported from Type.js
+const NonEmptyString50 = minLength(1)(maxLength(50)(String));
 import type { OwnerId } from "./Owner.js";
 
 // Group ID type
