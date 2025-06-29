@@ -1,11 +1,17 @@
-import { expect, test, describe } from "vitest";
-import { createGroupManager, type GroupManagerDeps, type GroupError } from "../src/Evolu/GroupManager.js";
+import { expect, test, describe, vi } from "vitest";
+import { 
+  createGroupManager, 
+  type GroupManagerDeps, 
+  type GroupError,
+  type GroupMetadataUpdate,
+} from "../src/Evolu/GroupManager.js";
 import { createGroupTables } from "../src/Evolu/GroupDbInit.js";
+import { createGroupActivityLogger } from "../src/Evolu/GroupActivityLogger.js";
 import { sql } from "../src/Sqlite.js";
 import { testCreateSqliteDriver, testSimpleName, testTime, testNanoIdLib, testRandom } from "./_deps.js";
 import { createSqlite } from "../src/Sqlite.js";
 import { getOrThrow } from "../src/Result.js";
-import type { GroupId, GroupRole } from "../src/Evolu/GroupSchema.js";
+import type { GroupId, GroupRole } from "../src/Evolu/GroupTypes.js";
 
 describe("GroupManager", () => {
   const createTestDeps = async (currentUserId = "user-123"): Promise<GroupManagerDeps> => {
@@ -17,6 +23,12 @@ describe("GroupManager", () => {
     // Create group tables
     const tablesResult = createGroupTables({ sqlite });
     getOrThrow(tablesResult);
+    
+    const activityLogger = createGroupActivityLogger({
+      sqlite,
+      time: testTime,
+      nanoIdLib: testNanoIdLib,
+    });
 
     return {
       sqlite,
@@ -24,6 +36,7 @@ describe("GroupManager", () => {
       nanoIdLib: testNanoIdLib,
       random: testRandom,
       currentUserId,
+      activityLogger,
     };
   };
 
@@ -398,5 +411,335 @@ describe("GroupManager", () => {
     if (memberCount.ok) {
       expect(memberCount.value.rows[0].count).toBe(0);
     }
+  });
+  
+  describe("updateMetadata", () => {
+    test("updates group name", async () => {
+      const deps = await createTestDeps();
+      const manager = createGroupManager(deps);
+      
+      // Create a group first
+      const createResult = manager.create("Original Name");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Update the name
+        const updates: GroupMetadataUpdate = {
+          name: "Updated Name",
+        };
+        
+        const updateResult = manager.updateMetadata(groupId, updates);
+        expect(updateResult.ok).toBe(true);
+        
+        // Verify the update
+        const getResult = manager.get(groupId);
+        expect(getResult.ok).toBe(true);
+        if (getResult.ok && getResult.value) {
+          expect(getResult.value.name).toBe("Updated Name");
+        }
+      }
+    });
+    
+    test("updates group description and settings", async () => {
+      const deps = await createTestDeps();
+      const manager = createGroupManager(deps);
+      
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        const updates: GroupMetadataUpdate = {
+          description: "A test group",
+          settings: { theme: "dark", notifications: true },
+        };
+        
+        const updateResult = manager.updateMetadata(groupId, updates);
+        expect(updateResult.ok).toBe(true);
+      }
+    });
+    
+    test("requires admin role", async () => {
+      // Create shared sqlite instance
+      const sqliteResult = await createSqlite({
+        createSqliteDriver: testCreateSqliteDriver,
+      })(testSimpleName);
+      const sqlite = getOrThrow(sqliteResult);
+      
+      // Create group tables
+      const tablesResult = createGroupTables({ sqlite });
+      getOrThrow(tablesResult);
+
+      const activityLogger = createGroupActivityLogger({
+        sqlite,
+        time: testTime,
+        nanoIdLib: testNanoIdLib,
+      });
+
+      // Create admin deps with shared sqlite
+      const adminDeps: GroupManagerDeps = {
+        sqlite,
+        time: testTime,
+        nanoIdLib: testNanoIdLib,
+        random: testRandom,
+        currentUserId: "admin-user",
+        activityLogger,
+      };
+      const adminManager = createGroupManager(adminDeps);
+
+      // Create member deps with shared sqlite
+      const memberDeps: GroupManagerDeps = {
+        sqlite,
+        time: testTime,
+        nanoIdLib: testNanoIdLib,
+        random: testRandom,
+        currentUserId: "member-user",
+        activityLogger,
+      };
+      const memberManager = createGroupManager(memberDeps);
+      
+      // Admin creates group
+      const createResult = adminManager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Add member
+        const addResult = adminManager.addMember(groupId, "member-user", "member", "public-key");
+        expect(addResult.ok).toBe(true);
+        
+        // Member tries to update metadata - should fail
+        const updates: GroupMetadataUpdate = { name: "Hacked Name" };
+        const updateResult = memberManager.updateMetadata(groupId, updates);
+        expect(updateResult.ok).toBe(false);
+        if (!updateResult.ok) {
+          expect(updateResult.error.type).toBe("InsufficientPermissions");
+        }
+      }
+    });
+  });
+  
+  describe("updateMemberRole", () => {
+    test("updates member role from member to admin", async () => {
+      const deps = await createTestDeps("admin-user");
+      const manager = createGroupManager(deps);
+      
+      // Create group
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Add member
+        const addResult = manager.addMember(groupId, "member-user", "member", "public-key");
+        expect(addResult.ok).toBe(true);
+        
+        // Update role to admin
+        const updateResult = manager.updateMemberRole(groupId, "member-user", "admin");
+        expect(updateResult.ok).toBe(true);
+        
+        // Verify the role change
+        const getResult = manager.get(groupId);
+        expect(getResult.ok).toBe(true);
+        if (getResult.ok && getResult.value) {
+          const member = getResult.value.members.find(m => m.userId === "member-user");
+          expect(member?.role).toBe("admin");
+        }
+      }
+    });
+    
+    test("prevents removing last admin", async () => {
+      const deps = await createTestDeps("admin-user");
+      const manager = createGroupManager(deps);
+      
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Try to demote the only admin
+        const updateResult = manager.updateMemberRole(groupId, "admin-user", "member");
+        expect(updateResult.ok).toBe(false);
+        if (!updateResult.ok) {
+          expect(updateResult.error.type).toBe("CannotRemoveLastAdmin");
+        }
+      }
+    });
+    
+    test("requires admin role to update roles", async () => {
+      // Create shared sqlite instance
+      const sqliteResult = await createSqlite({
+        createSqliteDriver: testCreateSqliteDriver,
+      })(testSimpleName);
+      const sqlite = getOrThrow(sqliteResult);
+      
+      // Create group tables
+      const tablesResult = createGroupTables({ sqlite });
+      getOrThrow(tablesResult);
+
+      const activityLogger = createGroupActivityLogger({
+        sqlite,
+        time: testTime,
+        nanoIdLib: testNanoIdLib,
+      });
+
+      // Create admin deps with shared sqlite
+      const adminDeps: GroupManagerDeps = {
+        sqlite,
+        time: testTime,
+        nanoIdLib: testNanoIdLib,
+        random: testRandom,
+        currentUserId: "admin-user",
+        activityLogger,
+      };
+      const adminManager = createGroupManager(adminDeps);
+
+      // Create member deps with shared sqlite
+      const memberDeps: GroupManagerDeps = {
+        sqlite,
+        time: testTime,
+        nanoIdLib: testNanoIdLib,
+        random: testRandom,
+        currentUserId: "member-user",
+        activityLogger,
+      };
+      const memberManager = createGroupManager(memberDeps);
+      
+      const createResult = adminManager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Add member
+        const addResult = adminManager.addMember(groupId, "member-user", "member", "public-key");
+        expect(addResult.ok).toBe(true);
+        
+        // Add another member
+        const addResult2 = adminManager.addMember(groupId, "other-user", "member", "public-key-2");
+        expect(addResult2.ok).toBe(true);
+        
+        // Member tries to update another member's role - should fail
+        const updateResult = memberManager.updateMemberRole(groupId, "other-user", "admin");
+        expect(updateResult.ok).toBe(false);
+        if (!updateResult.ok) {
+          expect(updateResult.error.type).toBe("InsufficientPermissions");
+        }
+      }
+    });
+  });
+  
+  describe("getActivityLog", () => {
+    test("retrieves activity log for group", async () => {
+      const deps = await createTestDeps();
+      const manager = createGroupManager(deps);
+      
+      // Create group (this logs activity)
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Add member (this logs activity)
+        const addResult = manager.addMember(groupId, "new-user", "member", "public-key");
+        expect(addResult.ok).toBe(true);
+        
+        // Get activity log
+        const logResult = manager.getActivityLog(groupId);
+        expect(logResult.ok).toBe(true);
+        
+        if (logResult.ok) {
+          // Should have at least group creation and member addition activities
+          expect(logResult.value.length).toBeGreaterThanOrEqual(1);
+          
+          // Check that activities are properly formatted
+          const activities = logResult.value;
+          for (const activity of activities) {
+            expect(activity.id).toBeDefined();
+            expect(activity.groupId).toBe(groupId);
+            expect(activity.actorId).toBeDefined();
+            expect(activity.action).toBeDefined();
+            expect(activity.epochNumber).toBeDefined();
+            expect(activity.timestamp).toBeDefined();
+          }
+        }
+      }
+    });
+    
+    test("uses pagination parameters", async () => {
+      const deps = await createTestDeps();
+      const manager = createGroupManager(deps);
+      
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Get with custom limit and offset
+        const logResult = manager.getActivityLog(groupId, 5, 0);
+        expect(logResult.ok).toBe(true);
+      }
+    });
+  });
+  
+  describe("activity logging integration", () => {
+    test("logs group creation", async () => {
+      const deps = await createTestDeps();
+      const manager = createGroupManager(deps);
+      
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        const logResult = manager.getActivityLog(groupId);
+        
+        expect(logResult.ok).toBe(true);
+        if (logResult.ok) {
+          const createActivity = logResult.value.find(a => a.action === "group_created");
+          expect(createActivity).toBeDefined();
+          expect(createActivity?.actorId).toBe("user-123");
+        }
+      }
+    });
+    
+    test("logs member operations", async () => {
+      const deps = await createTestDeps();
+      const manager = createGroupManager(deps);
+      
+      const createResult = manager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+      
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Add member
+        manager.addMember(groupId, "new-user", "member", "public-key");
+        
+        // Remove member
+        manager.removeMember(groupId, "new-user");
+        
+        const logResult = manager.getActivityLog(groupId);
+        expect(logResult.ok).toBe(true);
+        
+        if (logResult.ok) {
+          const addActivity = logResult.value.find(a => a.action === "member_added");
+          const removeActivity = logResult.value.find(a => a.action === "member_removed");
+          
+          expect(addActivity).toBeDefined();
+          expect(removeActivity).toBeDefined();
+          expect(addActivity?.targetId).toBe("new-user");
+          expect(removeActivity?.targetId).toBe("new-user");
+        }
+      }
+    });
   });
 });

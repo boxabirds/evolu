@@ -124,8 +124,11 @@ export const createGroupTables = (
   
   // Create indexes
   for (const indexSql of groupIndexes) {
-    // Execute raw SQL string directly
-    const result = deps.sqlite.exec({ sql: indexSql, args: [] });
+    // Use raw SQL to avoid template literal issues with indexes
+    const result = deps.sqlite.exec({ 
+      sql: indexSql as any, 
+      parameters: [] 
+    });
     if (!result.ok) return result;
   }
   
@@ -169,8 +172,8 @@ export const dropGroupTables = (
   for (const tableName of tablesToDrop) {
     // Use raw SQL to avoid template literal issues with table names
     const result = deps.sqlite.exec({ 
-      sql: `drop table if exists ${tableName};`, 
-      args: [] 
+      sql: `drop table if exists ${tableName};` as any, 
+      parameters: [] 
     });
     if (!result.ok) return result;
   }
@@ -207,8 +210,8 @@ export const verifyGroupSchema = (
   // Verify each table has expected columns
   for (const tableName of groupTableNames) {
     const result = deps.sqlite.exec<{ name: string }>({
-      sql: `pragma table_info(${tableName});`,
-      args: []
+      sql: `pragma table_info(${tableName});` as any,
+      parameters: []
     });
     
     if (!result.ok) return result;

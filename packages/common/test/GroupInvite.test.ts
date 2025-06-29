@@ -7,10 +7,12 @@ import {
 } from "../src/Evolu/GroupInvite.js";
 import { createGroupManager, type GroupManagerDeps } from "../src/Evolu/GroupManager.js";
 import { createGroupTables } from "../src/Evolu/GroupDbInit.js";
+import { createGroupActivityLogger } from "../src/Evolu/GroupActivityLogger.js";
 import { testCreateSqliteDriver, testSimpleName, testTime, testNanoIdLib, testRandom } from "./_deps.js";
 import { createSqlite } from "../src/Sqlite.js";
 import { getOrThrow } from "../src/Result.js";
-import type { GroupRole } from "../src/Evolu/GroupSchema.js";
+import type { GroupRole } from "../src/Evolu/GroupTypes.js";
+import { sql } from "../src/Sqlite.js";
 
 describe("GroupInvite", () => {
   beforeEach(() => {
@@ -27,6 +29,12 @@ describe("GroupInvite", () => {
     // Create group tables
     const tablesResult = createGroupTables({ sqlite });
     getOrThrow(tablesResult);
+    
+    const activityLogger = createGroupActivityLogger({
+      sqlite,
+      time: testTime,
+      nanoIdLib: testNanoIdLib,
+    });
 
     const groupManagerDeps: GroupManagerDeps = {
       sqlite,
@@ -34,16 +42,19 @@ describe("GroupInvite", () => {
       nanoIdLib: testNanoIdLib,
       random: testRandom,
       currentUserId,
+      activityLogger,
     };
 
     const groupManager = createGroupManager(groupManagerDeps);
     
     const deps: GroupInviteDeps = {
+      sqlite,
       time: testTime,
       random: testRandom,
       nanoIdLib: testNanoIdLib,
       groupManager,
       currentUserId,
+      activityLogger,
     };
     
     return deps;
@@ -97,11 +108,13 @@ describe("GroupInvite", () => {
 
       // Create invite manager for the member using same group manager
       const memberDeps: GroupInviteDeps = {
+        sqlite: deps.sqlite,
         time: testTime,
         random: testRandom,
         nanoIdLib: testNanoIdLib,
         groupManager: deps.groupManager,
         currentUserId: "member-user",
+        activityLogger: deps.activityLogger,
       };
       const memberInviteManager = createGroupInviteManager(memberDeps);
 
@@ -298,5 +311,98 @@ describe("GroupInvite", () => {
         expect(secondAccept.ok).toBe(false);
       }
     }
+  });
+
+  describe("enhanced invite management", () => {
+    test("revokeInvite revokes an active invite", async () => {
+      const deps = await createTestDeps();
+      const inviteManager = createGroupInviteManager(deps);
+
+      // Create group and invite
+      const createResult = deps.groupManager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        const inviteResult = inviteManager.generateInvite(groupId, "member" as GroupRole);
+        expect(inviteResult.ok).toBe(true);
+
+        if (inviteResult.ok) {
+          const invite = inviteResult.value;
+          
+          // Revoke the invite
+          const revokeResult = inviteManager.revokeInvite(invite.inviteCode, "no longer needed");
+          expect(revokeResult.ok).toBe(true);
+          
+          // Try to validate revoked invite
+          const validation = inviteManager.validateInvite(invite.inviteCode);
+          expect(validation.valid).toBe(false);
+          expect(validation.reason).toBe("InviteAlreadyUsed");
+        }
+      }
+    });
+    
+    test("listInvites returns all invites for a group", async () => {
+      const deps = await createTestDeps();
+      const inviteManager = createGroupInviteManager(deps);
+
+      const createResult = deps.groupManager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        
+        // Generate multiple invites
+        const invite1Result = inviteManager.generateInvite(groupId, "member" as GroupRole);
+        const invite2Result = inviteManager.generateInvite(groupId, "admin" as GroupRole);
+        
+        expect(invite1Result.ok).toBe(true);
+        expect(invite2Result.ok).toBe(true);
+        
+        // List invites
+        const listResult = inviteManager.listInvites(groupId);
+        expect(listResult.ok).toBe(true);
+        
+        if (listResult.ok) {
+          expect(listResult.value).toHaveLength(2);
+          
+          const memberInvite = listResult.value.find(i => i.role === "member");
+          const adminInvite = listResult.value.find(i => i.role === "admin");
+          
+          expect(memberInvite).toBeDefined();
+          expect(adminInvite).toBeDefined();
+          expect(memberInvite?.createdBy).toBe("user-123");
+          expect(adminInvite?.createdBy).toBe("user-123");
+        }
+      }
+    });
+    
+    test("getInviteStats returns usage statistics", async () => {
+      const deps = await createTestDeps();
+      const inviteManager = createGroupInviteManager(deps);
+
+      const createResult = deps.groupManager.create("Test Group");
+      expect(createResult.ok).toBe(true);
+
+      if (createResult.ok) {
+        const groupId = createResult.value.id;
+        const inviteResult = inviteManager.generateInvite(groupId, "member" as GroupRole, 24, 5);
+        expect(inviteResult.ok).toBe(true);
+
+        if (inviteResult.ok) {
+          const invite = inviteResult.value;
+          
+          // Get initial stats
+          const statsResult = inviteManager.getInviteStats(invite.inviteCode);
+          expect(statsResult.ok).toBe(true);
+          
+          if (statsResult.ok) {
+            expect(statsResult.value.uses).toBe(0);
+            expect(statsResult.value.maxUses).toBe(5);
+            expect(statsResult.value.isRevoked).toBe(false);
+          }
+        }
+      }
+    });
   });
 });
